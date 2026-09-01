@@ -839,12 +839,15 @@ function DailyReport({ view }: { view: ViewMode }) {
                       </td>
                       <td className="py-3 text-gray-500 text-xs">{e.invoiceNo || '—'}</td>
                       <td className="py-3 text-gray-700 max-w-xs">
-                        {expandBillingItems(e.items).map((row, idx) => (
-                          <div key={idx} className="text-xs">
-                            {row.name} <span className="text-gray-400">×{row.qty}</span>
-                            <span className="text-gray-400 ml-1">₹{row.revenue.toLocaleString('en-IN')}</span>
-                          </div>
-                        ))}
+                        {e.items.map((item, idx) => {
+                          const t = state.ticketItems.find(x => x.id === item.ticketItemId);
+                          return (
+                            <div key={idx} className="text-xs">
+                              {item.name ?? t?.name ?? item.ticketItemId} <span className="text-gray-400">×{item.quantity}</span>
+                              <span className="text-gray-400 ml-1">₹{item.total.toLocaleString('en-IN')}</span>
+                            </div>
+                          );
+                        })}
                       </td>
                       <td className="py-3"><span className="badge-gray capitalize">{e.paymentMethod}</span></td>
                       <td className="py-3 text-right font-bold text-gray-900">₹{e.totalAmount.toLocaleString('en-IN')}</td>
