@@ -125,15 +125,46 @@ function PaymentAndCash({ paymentSplit, opening, cashExpenses }: {
   );
 }
 
-const PIE_COLORS = ['#111827','#0f766e','#f59e0b','#3b82f6','#8b5cf6','#ef4444','#10b981','#f97316'];
+const PIE_COLORS = ['#111827','#0f766e','#f59e0b','#3b82f6'];
+
+const TICKET_TYPE_LABELS: Record<string, string> = {
+  entry: 'Entry Ticket',
+  combo: 'Combo Ticket',
+  ultimate: 'Ultimate Pet Lover Ticket',
+  group: 'Group Ticket',
+};
+
+function getTicketTypeKey(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes('group')) return 'group';
+  if (lower.includes('ultimate')) return 'ultimate';
+  if (lower.includes('combo')) return 'combo';
+  return 'entry';
+}
 
 function TransactionSalesPie({ entrySales, entryTotal }: {
   entrySales: [string, { qty: number; revenue: number; txCount: number }][];
   entryTotal: number;
 }) {
-  const data = entrySales.map(([name, d]) => ({ name, value: d.qty, revenue: d.revenue, qty: d.qty, txCount: d.txCount }));
+  // Aggregate into 4 fixed ticket types
+  const typeMap: Record<string, { qty: number; revenue: number; txCount: number }> = {
+    entry: { qty: 0, revenue: 0, txCount: 0 },
+    combo: { qty: 0, revenue: 0, txCount: 0 },
+    ultimate: { qty: 0, revenue: 0, txCount: 0 },
+    group: { qty: 0, revenue: 0, txCount: 0 },
+  };
+  entrySales.forEach(([name, d]) => {
+    const key = getTicketTypeKey(name);
+    typeMap[key].qty += d.qty;
+    typeMap[key].revenue += d.revenue;
+    typeMap[key].txCount += d.txCount;
+  });
+  const data = Object.entries(typeMap)
+    .filter(([, d]) => d.qty > 0)
+    .map(([key, d]) => ({ name: TICKET_TYPE_LABELS[key], value: d.qty, revenue: d.revenue, qty: d.qty, txCount: d.txCount }));
   const totalQty = data.reduce((s, d) => s + d.qty, 0);
   const totalTx  = data.reduce((s, d) => s + d.txCount, 0);
+
   if (!data.length) return (
     <div className="card">
       <p className="section-title mb-2">Ticket Sales</p>
@@ -149,11 +180,11 @@ function TransactionSalesPie({ entrySales, entryTotal }: {
           <p className="text-xs text-gray-400"><span className="font-bold text-gray-700">{totalQty}</span> tickets · <span className="font-bold text-gray-700">{totalTx}</span> transactions</p>
         </div>
       </div>
-      <div className="flex flex-col sm:flex-row items-center gap-6">
-        <div className="w-44 h-44 flex-shrink-0">
+      <div className="flex flex-col lg:flex-row items-center gap-8">
+        <div className="w-56 h-56 flex-shrink-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={44} outerRadius={72} paddingAngle={3}>
+              <Pie data={data} dataKey="value" cx="50%" cy="50%" innerRadius={54} outerRadius={88} paddingAngle={3}>
                 {data.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie>
               <Tooltip
@@ -167,78 +198,142 @@ function TransactionSalesPie({ entrySales, entryTotal }: {
           </ResponsiveContainer>
         </div>
         <div className="flex-1 w-full">
-          <div className="grid grid-cols-4 pb-1.5 mb-1 border-b border-gray-100">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide col-span-2">Type</span>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Tickets</span>
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Transactions</span>
-          </div>
-          <div className="space-y-2">
-            {data.map((item, i) => {
-              const pct = totalQty > 0 ? Math.round((item.qty / totalQty) * 100) : 0;
-              return (
-                <div key={item.name} className="grid grid-cols-4 items-center gap-2">
-                  <div className="flex items-center gap-2 min-w-0 col-span-2">
-                    <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                    <span className="text-sm text-gray-700 truncate">{item.name}</span>
-                    <span className="text-xs text-gray-400 flex-shrink-0">{pct}%</span>
-                  </div>
-                  <span className="text-sm font-bold text-gray-900 text-right">{item.qty}</span>
-                  <span className="text-sm font-semibold text-blue-700 text-right">{item.txCount}</span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="grid grid-cols-4 items-center gap-2 pt-2 mt-2 border-t border-gray-100">
-            <span className="text-sm font-semibold text-gray-700 col-span-2">Total</span>
-            <span className="text-sm font-bold text-gray-900 text-right">{totalQty}</span>
-            <span className="text-sm font-bold text-blue-700 text-right">{totalTx}</span>
-          </div>
-          <div className="mt-3 pt-2 border-t border-gray-100 flex justify-between items-center">
-            <span className="text-xs text-gray-400">Revenue</span>
-            <span className="text-sm font-bold text-emerald-700">{fmt(entryTotal)}</span>
-          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left">Ticket Type</th>
+                <th className="py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">%</th>
+                <th className="py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Tickets</th>
+                <th className="py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Transactions</th>
+                <th className="py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide text-right">Total Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((item, i) => {
+                const pct = totalQty > 0 ? Math.round((item.qty / totalQty) * 100) : 0;
+                return (
+                  <tr key={item.name} className="border-b border-gray-50">
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className="font-medium text-gray-900">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-right text-gray-500">{pct}%</td>
+                    <td className="py-3 text-right font-bold text-gray-900">{item.qty}</td>
+                    <td className="py-3 text-right text-gray-600">{item.txCount}</td>
+                    <td className="py-3 text-right font-bold text-emerald-700">{fmt(item.revenue)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200">
+                <td className="py-3 text-sm font-semibold text-gray-700">Total</td>
+                <td className="py-3 text-right text-gray-500">100%</td>
+                <td className="py-3 text-right font-bold text-gray-900">{totalQty}</td>
+                <td className="py-3 text-right text-gray-600">{totalTx}</td>
+                <td className="py-3 text-right font-bold text-emerald-700">{fmt(entryTotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
   );
 }
 
-function ItemSalesTables({ entrySales, addonSales, entryTotal, addonTotal }: {
+function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
+  entrySales: [string, { qty: number; revenue: number; txCount: number }][];
+  revenueEntries: RevenueEntry[];
+  ticketItems: TicketItem[];
+}) {
+  const groupItemIds = new Set(ticketItems.filter(t => t.name.toLowerCase().includes('group')).map(t => t.id));
+  const rows: { name: string; price: number; qty: number; total: number }[] = [];
+  revenueEntries.forEach(entry => {
+    entry.items.forEach(item => {
+      if (!groupItemIds.has(item.ticketItemId)) return;
+      const t = ticketItems.find(x => x.id === item.ticketItemId);
+      rows.push({ name: t?.name ?? item.ticketItemId, price: item.unitPrice, qty: item.quantity, total: item.total });
+    });
+  });
+  const totalRevenue = entrySales.filter(([name]) => getTicketTypeKey(name) === 'group').reduce((s, [, d]) => s + d.revenue, 0);
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <p className="section-title">Group Ticket Sales</p>
+        <span className="text-sm font-bold text-emerald-700">{fmt(totalRevenue)}</span>
+      </div>
+      {!rows.length ? (
+        <p className="text-gray-400 text-sm text-center py-6">No group ticket sales</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100">
+              {['Group Name', 'Ticket Price', 'Quantity', 'Total Price'].map(h => (
+                <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h === 'Group Name' ? 'text-left' : 'text-right'}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-b border-gray-50 table-row-hover">
+                <td className="py-3 font-medium text-gray-900">{row.name}</td>
+                <td className="py-3 text-right text-gray-600">{fmt(row.price)}</td>
+                <td className="py-3 text-right text-gray-600">{row.qty}</td>
+                <td className="py-3 text-right font-bold text-emerald-700">{fmt(row.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function ItemSalesTables({ entrySales, addonSales, entryTotal, addonTotal, revenueEntries, ticketItems }: {
   entrySales: [string, { qty: number; revenue: number; txCount: number }][];
   addonSales: [string, { qty: number; revenue: number; txCount: number }][];
   entryTotal: number;
   addonTotal: number;
+  revenueEntries: RevenueEntry[];
+  ticketItems: TicketItem[];
 }) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div className="space-y-5">
+      {/* Ticket Sales — full width */}
       <TransactionSalesPie entrySales={entrySales} entryTotal={entryTotal} />
-      <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <p className="section-title">Add-on Sales</p>
-          <span className="text-sm font-bold text-emerald-700">{fmt(addonTotal)}</span>
-        </div>
-        {!addonSales.length ? (
-          <p className="text-gray-400 text-sm text-center py-6">No sales</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100">
-                {['Item', 'Qty', 'Revenue'].map(h => (
-                  <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h !== 'Item' ? 'text-right' : 'text-left'}`}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {addonSales.map(([name, data]) => (
-                <tr key={name} className="border-b border-gray-50 table-row-hover">
-                  <td className="py-3 font-medium text-gray-900">{name}</td>
-                  <td className="py-3 text-right text-gray-600">{data.qty}</td>
-                  <td className="py-3 text-right font-bold text-emerald-700">{fmt(data.revenue)}</td>
+      {/* Add-on Sales + Group Ticket Sales — side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <p className="section-title">Add-on Sales</p>
+            <span className="text-sm font-bold text-emerald-700">{fmt(addonTotal)}</span>
+          </div>
+          {!addonSales.length ? (
+            <p className="text-gray-400 text-sm text-center py-6">No sales</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  {['Item', 'Qty', 'Revenue'].map(h => (
+                    <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h !== 'Item' ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody>
+                {addonSales.map(([name, data]) => (
+                  <tr key={name} className="border-b border-gray-50 table-row-hover">
+                    <td className="py-3 font-medium text-gray-900">{name}</td>
+                    <td className="py-3 text-right text-gray-600">{data.qty}</td>
+                    <td className="py-3 text-right font-bold text-emerald-700">{fmt(data.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <GroupTicketSales entrySales={entrySales} revenueEntries={revenueEntries} ticketItems={ticketItems} />
       </div>
     </div>
   );
@@ -800,7 +895,7 @@ function DailyReport({ view }: { view: ViewMode }) {
       {view !== 'expenses' && <OverviewChart title="Hourly Performance" subtitle="Visitors and tickets are shown as bars, while revenue is shown as a line through the day." data={r.hourlyBars} />}
       {view !== 'expenses' && <TicketBreakdownCard points={r.hourlyBreakdown} />}
       {view !== 'expenses' && <PaymentAndCash paymentSplit={r.paymentSplit} opening={r.opening} cashExpenses={r.cashExpenses} />}
-      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} />}
+      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} revenueEntries={r.rev} ticketItems={state.ticketItems} />}
       {view !== 'expenses' && r.addOnStaffBreakdown.length > 0 && (
         <div className="card">
           <p className="section-title mb-4">Add-On Staff Split</p>
@@ -962,7 +1057,7 @@ function WeeklyReport({ view }: { view: ViewMode }) {
       {view !== 'expenses' && <OverviewChart title="Weekly Performance" subtitle="Compare visitors and tickets each day while revenue tracks as a line across the week." data={r.trend} />}
       {view !== 'expenses' && <TicketBreakdownCard points={r.breakdown} />}
       {view !== 'expenses' && <PaymentAndCash paymentSplit={r.paymentSplit} opening={0} cashExpenses={r.cashExpenses} />}
-      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} />}
+      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} revenueEntries={state.revenueEntries.filter(e => { const [yearStr, weekStr] = weekOf.split('-W'); const weekYear = Number(yearStr); const weekNum = Number(weekStr); const jan4 = new Date(weekYear, 0, 4); const startMonday = new Date(jan4); startMonday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7) + (weekNum - 1) * 7); const end = new Date(startMonday); end.setDate(startMonday.getDate() + 6); const days = eachDayOfInterval({ start: startMonday, end }).map(d => format(d, 'yyyy-MM-dd')); return days.includes(e.date); })} ticketItems={state.ticketItems} />}
       {view !== 'revenue' && <ExpenseTable expenses={r.expenses} ledgers={state.ledgers} />}
     </div>
   );
@@ -1037,7 +1132,7 @@ function MonthlyReport({ view }: { view: ViewMode }) {
       {view !== 'expenses' && <OverviewChart title="Monthly Performance" subtitle="Track daily visitors and ticket volume with revenue overlaid as a line for the selected month." data={r.trend} />}
       {view !== 'expenses' && <TicketBreakdownCard points={r.breakdown} />}
       {view !== 'expenses' && <PaymentAndCash paymentSplit={r.paymentSplit} opening={0} cashExpenses={r.cashExpenses} />}
-      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} />}
+      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} revenueEntries={state.revenueEntries.filter(e => e.date.startsWith(month))} ticketItems={state.ticketItems} />}
       {view !== 'revenue' && <ExpenseTable expenses={r.expenses} ledgers={state.ledgers} />}
     </div>
   );
@@ -1139,7 +1234,7 @@ function YearlyReport({ view }: { view: ViewMode }) {
         </div>
       )}
       {view !== 'expenses' && <PaymentAndCash paymentSplit={r.paymentSplit} opening={0} cashExpenses={r.cashExpenses} />}
-      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} />}
+      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} revenueEntries={state.revenueEntries.filter(e => e.date.startsWith(String(year)))} ticketItems={state.ticketItems} />}
       {view !== 'revenue' && <ExpenseTable expenses={r.expenses} ledgers={state.ledgers} />}
     </div>
   );
@@ -1229,7 +1324,7 @@ function CustomReport({ view }: { view: ViewMode }) {
       {view !== 'expenses' && <OverviewChart title="Custom Range Performance" subtitle={`Daily visitors, tickets and revenue from ${r.rangeLabel}.`} data={r.trend} />}
       {view !== 'expenses' && <TicketBreakdownCard points={r.breakdown} />}
       {view !== 'expenses' && <PaymentAndCash paymentSplit={r.paymentSplit} opening={0} cashExpenses={r.cashExpenses} />}
-      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} />}
+      {view !== 'expenses' && <ItemSalesTables entrySales={r.entrySales} addonSales={r.addonSales} entryTotal={r.entryTotal} addonTotal={r.addonTotal} revenueEntries={state.revenueEntries.filter(e => { const from = fromDate <= toDate ? fromDate : toDate; const to = fromDate <= toDate ? toDate : fromDate; return e.date >= from && e.date <= to; })} ticketItems={state.ticketItems} />}
       {view !== 'revenue' && <ExpenseTable expenses={r.expenses} ledgers={state.ledgers} />}
     </div>
   );
