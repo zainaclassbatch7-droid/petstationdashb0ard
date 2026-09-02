@@ -648,43 +648,21 @@ function ExpenseTable({ expenses, ledgers }: { expenses: any[]; ledgers: any[] }
   return <ExpenseTableCollapsible expenses={expenses} ledgers={ledgers} />;
 }
 
-// Mirrors getBillLines in Billing.tsx — splits combo/ultimate into separate billing lines
-const ENTRY_PRICE = 150;
-const PET_FEED_PRICE = 50;
-const LIVE_FEED_PRICE = 300;
 
-function expandBillingItems(items: any[]): { name: string; qty: number; revenue: number; isAddon: boolean }[] {
-  const rows: { name: string; qty: number; revenue: number; isAddon: boolean }[] = [];
-  for (const i of items) {
-    const id = i.ticketItemId;
-    const qty = i.quantity;
-    if (id === 'entry-only') {
-      rows.push({ name: 'Entry Ticket', qty, revenue: ENTRY_PRICE * qty, isAddon: false });
-    } else if (id === 'combo-entry') {
-      rows.push({ name: 'Entry Ticket', qty, revenue: ENTRY_PRICE * qty, isAddon: false });
-      rows.push({ name: 'Pet Feed', qty, revenue: PET_FEED_PRICE * qty, isAddon: false });
-    } else if (id === 'ultimate-pet-lover-pass' || (i.name ?? '').trim().toLowerCase() === 'ultimate pet lover pass') {
-      rows.push({ name: 'Ultimate Pet Lover Entry Ticket', qty, revenue: ENTRY_PRICE * qty, isAddon: false });
-      rows.push({ name: 'Live Feed', qty, revenue: LIVE_FEED_PRICE * qty, isAddon: false });
-    } else {
-      rows.push({ name: i.name ?? id, qty, revenue: i.total, isAddon: false });
-    }
-  }
-  return rows;
-}
 
 function getOriginalTicketTypeName(ticketItemId: string, itemName: string | undefined, ticketItems: any[]): string {
-  // Check ticketItemId directly first (most reliable for hardcoded IDs like 'combo-entry')
+  // Check ticketItemId directly first (reliable for hardcoded IDs)
   const idLower = ticketItemId.toLowerCase();
   if (idLower.includes('group')) return 'Group Ticket';
   if (idLower.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
   if (idLower.includes('combo')) return 'Combo Ticket';
-  // Then check the stored item name
+  // Fall back to stored item name or ticketItems lookup
   const t = ticketItems.find((x: any) => x.id === ticketItemId);
   const name = (t?.name ?? itemName ?? '').toLowerCase();
   if (name.includes('group')) return 'Group Ticket';
   if (name.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
   if (name.includes('combo')) return 'Combo Ticket';
+  if (name.includes('entry')) return 'Entry Ticket';
   return 'Entry Ticket';
 }
 
