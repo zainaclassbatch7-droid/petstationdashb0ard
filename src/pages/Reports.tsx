@@ -674,8 +674,14 @@ function expandBillingItems(items: any[]): { name: string; qty: number; revenue:
 }
 
 function getOriginalTicketTypeName(ticketItemId: string, itemName: string | undefined, ticketItems: any[]): string {
+  // Check ticketItemId directly first (most reliable for hardcoded IDs like 'combo-entry')
+  const idLower = ticketItemId.toLowerCase();
+  if (idLower.includes('group')) return 'Group Ticket';
+  if (idLower.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
+  if (idLower.includes('combo')) return 'Combo Ticket';
+  // Then check the stored item name
   const t = ticketItems.find((x: any) => x.id === ticketItemId);
-  const name = (t?.name ?? itemName ?? ticketItemId).toLowerCase();
+  const name = (t?.name ?? itemName ?? '').toLowerCase();
   if (name.includes('group')) return 'Group Ticket';
   if (name.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
   if (name.includes('combo')) return 'Combo Ticket';
@@ -689,12 +695,13 @@ function buildItemSales(rev: any[], ticketItems: any[], addonEntries: AddOnEntry
     entry.items.forEach((item: any) => {
       const t = ticketItems.find((x: any) => x.id === item.ticketItemId);
       if (t?.category === 'addon') {
-        const key = t?.name ?? item.ticketItemId;
+        const key = t?.name ?? item.name ?? item.ticketItemId;
         if (!addonSales[key]) addonSales[key] = { qty: 0, revenue: 0, txCount: 0 };
         addonSales[key].qty += item.quantity;
         addonSales[key].revenue += item.total;
         addonSales[key].txCount += 1;
       } else {
+        // Use stored item.name first (set at billing time), then fall back to ticketItems lookup
         const key = getOriginalTicketTypeName(item.ticketItemId, item.name ?? t?.name, ticketItems);
         if (!entrySales[key]) entrySales[key] = { qty: 0, revenue: 0, txCount: 0 };
         entrySales[key].qty += item.quantity;
