@@ -244,26 +244,28 @@ function TransactionSalesPie({ entrySales, entryTotal }: {
   );
 }
 
-function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
+function GroupTicketSales({ entrySales, revenueEntries }: {
   entrySales: [string, { qty: number; revenue: number; txCount: number }][];
   revenueEntries: RevenueEntry[];
-  ticketItems: TicketItem[];
 }) {
-  const groupItemIds = new Set(ticketItems.filter(t => t.name.toLowerCase().includes('group')).map(t => t.id));
-  const rows: { name: string; price: number; qty: number; total: number }[] = [];
+  const rows: { date: string; name: string; price: number; qty: number; total: number }[] = [];
   revenueEntries.forEach(entry => {
     entry.items.forEach(item => {
-      if (!groupItemIds.has(item.ticketItemId)) return;
-      const t = ticketItems.find(x => x.id === item.ticketItemId);
-      rows.push({ name: t?.name ?? item.ticketItemId, price: item.unitPrice, qty: item.quantity, total: item.total });
+      if (item.ticketItemId !== 'group-ticket' && getTicketTypeKey(item.name ?? item.ticketItemId) !== 'group') return;
+      rows.push({ date: entry.date, name: item.name ?? item.ticketItemId, price: item.unitPrice, qty: item.quantity, total: item.total });
     });
   });
+  rows.sort((a, b) => a.date.localeCompare(b.date));
   const totalRevenue = entrySales.filter(([name]) => getTicketTypeKey(name) === 'group').reduce((s, [, d]) => s + d.revenue, 0);
+  const totalPeople = rows.reduce((s, r) => s + r.qty, 0);
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-3">
         <p className="section-title">Group Ticket Sales</p>
-        <span className="text-sm font-bold text-emerald-700">{fmt(totalRevenue)}</span>
+        <div className="text-right">
+          <p className="text-sm font-bold text-emerald-700">{fmt(totalRevenue)}</p>
+          <p className="text-xs text-gray-400">{totalPeople} people · {rows.length} transactions</p>
+        </div>
       </div>
       {!rows.length ? (
         <p className="text-gray-400 text-sm text-center py-6">No group ticket sales</p>
@@ -271,14 +273,15 @@ function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100">
-              {['Group Name', 'Ticket Price', 'Quantity', 'Total Price'].map(h => (
-                <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h === 'Group Name' ? 'text-left' : 'text-right'}`}>{h}</th>
+              {['Date', 'Group Name', 'Price/Head', 'People', 'Total'].map(h => (
+                <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h === 'Date' || h === 'Group Name' ? 'text-left' : 'text-right'}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, i) => (
               <tr key={i} className="border-b border-gray-50 table-row-hover">
+                <td className="py-3 text-gray-500 text-xs whitespace-nowrap">{format(new Date(row.date), 'dd MMM')}</td>
                 <td className="py-3 font-medium text-gray-900">{row.name}</td>
                 <td className="py-3 text-right text-gray-600">{fmt(row.price)}</td>
                 <td className="py-3 text-right text-gray-600">{row.qty}</td>
@@ -286,6 +289,13 @@ function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
               </tr>
             ))}
           </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-gray-200">
+              <td colSpan={3} className="py-3 text-sm font-semibold text-gray-700">Total</td>
+              <td className="py-3 text-right font-bold text-gray-900">{totalPeople}</td>
+              <td className="py-3 text-right font-bold text-emerald-700">{fmt(totalRevenue)}</td>
+            </tr>
+          </tfoot>
         </table>
       )}
     </div>
@@ -334,7 +344,7 @@ function ItemSalesTables({ entrySales, addonSales, entryTotal, addonTotal, reven
             </table>
           )}
         </div>
-        <GroupTicketSales entrySales={entrySales} revenueEntries={revenueEntries} ticketItems={ticketItems} />
+        <GroupTicketSales entrySales={entrySales} revenueEntries={revenueEntries} />
       </div>
     </div>
   );
