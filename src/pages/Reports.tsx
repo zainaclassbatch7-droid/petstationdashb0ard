@@ -146,7 +146,8 @@ function TransactionSalesPie({ entrySales, entryTotal }: {
   entrySales: [string, { qty: number; revenue: number; txCount: number }][];
   entryTotal: number;
 }) {
-  // Aggregate into 4 fixed ticket types
+  // entrySales keys are already the canonical label names from getOriginalTicketTypeName
+  // so we aggregate directly by matching against TICKET_TYPE_LABELS values
   const typeMap: Record<string, { qty: number; revenue: number; txCount: number }> = {
     entry: { qty: 0, revenue: 0, txCount: 0 },
     combo: { qty: 0, revenue: 0, txCount: 0 },
@@ -672,22 +673,36 @@ function expandBillingItems(items: any[]): { name: string; qty: number; revenue:
   return rows;
 }
 
+function getOriginalTicketTypeName(ticketItemId: string, itemName: string | undefined, ticketItems: any[]): string {
+  const lower = (itemName ?? '').toLowerCase();
+  if (ticketItemId === 'combo-entry' || lower.includes('combo')) return 'Combo Ticket';
+  if (ticketItemId === 'ultimate-pet-lover-pass' || lower.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
+  const t = ticketItems.find((x: any) => x.id === ticketItemId);
+  if (t?.name?.toLowerCase().includes('group') || lower.includes('group')) return 'Group Ticket';
+  if (t?.name?.toLowerCase().includes('combo') || lower.includes('combo')) return 'Combo Ticket';
+  if (t?.name?.toLowerCase().includes('ultimate') || lower.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
+  return 'Entry Ticket';
+}
+
 function buildItemSales(rev: any[], ticketItems: any[], addonEntries: AddOnEntry[] = []) {
   const entrySales: Record<string, { qty: number; revenue: number; txCount: number }> = {};
   const addonSales: Record<string, { qty: number; revenue: number; txCount: number }> = {};
   rev.forEach(entry => {
-    const expanded = expandBillingItems(entry.items);
-    // Aggregate revenue per name within this transaction to find the dominant type
-    const revenueByName: Record<string, number> = {};
-    expanded.forEach(row => { revenueByName[row.name] = (revenueByName[row.name] || 0) + row.revenue; });
-    const dominantName = Object.entries(revenueByName).sort((a, b) => b[1] - a[1])[0]?.[0];
-    expanded.forEach(row => {
-      const t = ticketItems.find((x: any) => x.name === row.name);
-      const target = t?.category === 'addon' ? addonSales : entrySales;
-      if (!target[row.name]) target[row.name] = { qty: 0, revenue: 0, txCount: 0 };
-      target[row.name].qty += row.qty;
-      target[row.name].revenue += row.revenue;
-      if (row.name === dominantName) target[row.name].txCount += 1;
+    entry.items.forEach((item: any) => {
+      const t = ticketItems.find((x: any) => x.id === item.ticketItemId);
+      if (t?.category === 'addon') {
+        const key = t?.name ?? item.ticketItemId;
+        if (!addonSales[key]) addonSales[key] = { qty: 0, revenue: 0, txCount: 0 };
+        addonSales[key].qty += item.quantity;
+        addonSales[key].revenue += item.total;
+        addonSales[key].txCount += 1;
+      } else {
+        const key = getOriginalTicketTypeName(item.ticketItemId, item.name ?? t?.name, ticketItems);
+        if (!entrySales[key]) entrySales[key] = { qty: 0, revenue: 0, txCount: 0 };
+        entrySales[key].qty += item.quantity;
+        entrySales[key].revenue += item.total;
+        entrySales[key].txCount += 1;
+      }
     });
   });
   addonEntries.forEach(entry => {
