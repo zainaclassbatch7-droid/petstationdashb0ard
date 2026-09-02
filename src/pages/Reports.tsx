@@ -674,13 +674,11 @@ function expandBillingItems(items: any[]): { name: string; qty: number; revenue:
 }
 
 function getOriginalTicketTypeName(ticketItemId: string, itemName: string | undefined, ticketItems: any[]): string {
-  const lower = (itemName ?? '').toLowerCase();
-  if (ticketItemId === 'combo-entry' || lower.includes('combo')) return 'Combo Ticket';
-  if (ticketItemId === 'ultimate-pet-lover-pass' || lower.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
   const t = ticketItems.find((x: any) => x.id === ticketItemId);
-  if (t?.name?.toLowerCase().includes('group') || lower.includes('group')) return 'Group Ticket';
-  if (t?.name?.toLowerCase().includes('combo') || lower.includes('combo')) return 'Combo Ticket';
-  if (t?.name?.toLowerCase().includes('ultimate') || lower.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
+  const name = (t?.name ?? itemName ?? ticketItemId).toLowerCase();
+  if (name.includes('group')) return 'Group Ticket';
+  if (name.includes('ultimate')) return 'Ultimate Pet Lover Ticket';
+  if (name.includes('combo')) return 'Combo Ticket';
   return 'Entry Ticket';
 }
 
