@@ -255,7 +255,10 @@ function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
       const ticket = ticketItems.find(ticketItem => ticketItem.id === item.ticketItemId);
       const itemName = item.name ?? ticket?.name ?? item.ticketItemId;
       if (item.ticketItemId !== 'group-ticket' && getTicketTypeKey(itemName) !== 'group') return;
-      rows.push({ date: entry.date, name: itemName, price: item.unitPrice, qty: item.quantity, total: item.total });
+      const legacyGroup = itemName.match(/₹\s*([\d,]+).*x\s*(\d+)\s*$/i);
+      const price = legacyGroup ? Number(legacyGroup[1].replace(/,/g, '')) : item.unitPrice;
+      const qty = legacyGroup ? Number(legacyGroup[2]) : item.quantity;
+      rows.push({ date: entry.date, name: itemName, price, qty, total: item.total });
     });
   });
   rows.sort((a, b) => a.date.localeCompare(b.date));
@@ -267,7 +270,7 @@ function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
         <p className="section-title">Group Ticket Sales</p>
         <div className="text-right">
           <p className="text-sm font-bold text-emerald-700">{fmt(totalRevenue)}</p>
-          <p className="text-xs text-gray-400">{totalPeople} people · {rows.length} transactions</p>
+          <p className="text-xs text-gray-400">{totalPeople} tickets · {rows.length} transactions</p>
         </div>
       </div>
       {!rows.length ? (
@@ -276,7 +279,7 @@ function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-100">
-              {['Date', 'Group Name', 'Price/Head', 'People', 'Total'].map(h => (
+              {['Date', 'Group Name', 'Price/Ticket', 'Tickets', 'Total'].map(h => (
                 <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h === 'Date' || h === 'Group Name' ? 'text-left' : 'text-right'}`}>{h}</th>
               ))}
             </tr>

@@ -139,14 +139,13 @@ export default function Billing() {
         e.preventDefault();
         if (groupCount > 0) {
           const id = 'group-ticket';
-          const total = groupCount * groupPrice;
           const label = groupName.trim()
             ? `Group Ticket (${groupName.trim()} (₹${groupPrice})) x ${groupCount}`
             : `Group Ticket (₹${groupPrice}) x ${groupCount}`;
           setCart(prev => {
             const ex = prev.find(c => c.ticketItemId === id);
-            if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: 1, price: total, name: label } : c);
-            return [...prev, { ticketItemId: id, name: label, price: total, quantity: 1 }];
+            if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: groupCount, price: groupPrice, name: label } : c);
+            return [...prev, { ticketItemId: id, name: label, price: groupPrice, quantity: groupCount }];
           });
           setCartOpen(true);
         }
@@ -828,14 +827,13 @@ export default function Billing() {
                       className="btn-primary px-3 py-2 gap-1 text-sm"
                       onClick={() => {
                         const id = 'group-ticket';
-                        const total = groupCount * groupPrice;
                         const label = groupName.trim()
                           ? `Group Ticket (${groupName.trim()} (₹${groupPrice})) x ${groupCount}`
                           : `Group Ticket (₹${groupPrice}) x ${groupCount}`;
                         setCart(prev => {
                           const ex = prev.find(c => c.ticketItemId === id);
-                          if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: 1, price: total, name: label } : c);
-                          return [...prev, { ticketItemId: id, name: label, price: total, quantity: 1 }];
+                          if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: groupCount, price: groupPrice, name: label } : c);
+                          return [...prev, { ticketItemId: id, name: label, price: groupPrice, quantity: groupCount }];
                         });
                       }}
                       disabled={groupCount <= 0}
