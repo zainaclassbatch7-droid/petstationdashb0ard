@@ -244,15 +244,18 @@ function TransactionSalesPie({ entrySales, entryTotal }: {
   );
 }
 
-function GroupTicketSales({ entrySales, revenueEntries }: {
+function GroupTicketSales({ entrySales, revenueEntries, ticketItems }: {
   entrySales: [string, { qty: number; revenue: number; txCount: number }][];
   revenueEntries: RevenueEntry[];
+  ticketItems: TicketItem[];
 }) {
   const rows: { date: string; name: string; price: number; qty: number; total: number }[] = [];
   revenueEntries.forEach(entry => {
     entry.items.forEach(item => {
-      if (item.ticketItemId !== 'group-ticket' && getTicketTypeKey(item.name ?? item.ticketItemId) !== 'group') return;
-      rows.push({ date: entry.date, name: item.name ?? item.ticketItemId, price: item.unitPrice, qty: item.quantity, total: item.total });
+      const ticket = ticketItems.find(ticketItem => ticketItem.id === item.ticketItemId);
+      const itemName = item.name ?? ticket?.name ?? item.ticketItemId;
+      if (item.ticketItemId !== 'group-ticket' && getTicketTypeKey(itemName) !== 'group') return;
+      rows.push({ date: entry.date, name: itemName, price: item.unitPrice, qty: item.quantity, total: item.total });
     });
   });
   rows.sort((a, b) => a.date.localeCompare(b.date));
@@ -344,7 +347,7 @@ function ItemSalesTables({ entrySales, addonSales, entryTotal, addonTotal, reven
             </table>
           )}
         </div>
-        <GroupTicketSales entrySales={entrySales} revenueEntries={revenueEntries} />
+        <GroupTicketSales entrySales={entrySales} revenueEntries={revenueEntries} ticketItems={ticketItems} />
       </div>
     </div>
   );
