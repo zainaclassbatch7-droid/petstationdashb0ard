@@ -686,8 +686,26 @@ function buildItemSales(rev: any[], ticketItems: any[], addonEntries: AddOnEntry
   const entrySales: Record<string, { qty: number; revenue: number; txCount: number }> = {};
   const addonSales: Record<string, { qty: number; revenue: number; txCount: number }> = {};
   rev.forEach(entry => {
+    // Historical imports store the ticket and its feed as separate lines. Treat
+    // them as one ticket type so Pet Feed / Live Feed are not shown as Entry.
+    const hasPetFeed = entry.items.some((item: any) => item.name === 'Pet Feed');
+    const petFeedTotal = entry.items
+      .filter((item: any) => item.name === 'Pet Feed')
+      .reduce((sum: number, item: any) => sum + item.total, 0);
+    const liveFeedTotal = entry.items
+      .filter((item: any) => item.name === 'Live Feed')
+      .reduce((sum: number, item: any) => sum + item.total, 0);
+    const invoiceSales: Record<string, { qty: number; revenue: number }> = {};
+    const addInvoiceSale = (key: string, qty: number, revenue: number) => {
+      if (!invoiceSales[key]) invoiceSales[key] = { qty: 0, revenue: 0 };
+      invoiceSales[key].qty += qty;
+      invoiceSales[key].revenue += revenue;
+    };
+
     entry.items.forEach((item: any) => {
       const t = ticketItems.find((x: any) => x.id === item.ticketItemId);
+      // These are components of imported combo / ultimate tickets, not tickets themselves.
+      if (item.name === 'Pet Feed' || item.name === 'Live Feed') return;
       if (t?.category === 'addon') {
         const key = t?.name ?? item.name ?? item.ticketItemId;
         if (!addonSales[key]) addonSales[key] = { qty: 0, revenue: 0, txCount: 0 };
@@ -695,13 +713,20 @@ function buildItemSales(rev: any[], ticketItems: any[], addonEntries: AddOnEntry
         addonSales[key].revenue += item.total;
         addonSales[key].txCount += 1;
       } else {
-        // Use stored item.name first (set at billing time), then fall back to ticketItems lookup
-        const key = getOriginalTicketTypeName(item.ticketItemId, item.name ?? t?.name, ticketItems);
-        if (!entrySales[key]) entrySales[key] = { qty: 0, revenue: 0, txCount: 0 };
-        entrySales[key].qty += item.quantity;
-        entrySales[key].revenue += item.total;
-        entrySales[key].txCount += 1;
+        const isUltimate = item.name === 'Ultimate Pet Lover Entry Ticket';
+        const isEntry = item.name === 'Entry Ticket';
+        const key = isUltimate ? 'Ultimate Pet Lover Ticket'
+          : isEntry && hasPetFeed ? 'Combo Ticket'
+          : getOriginalTicketTypeName(item.ticketItemId, item.name ?? t?.name, ticketItems);
+        const componentRevenue = isUltimate ? liveFeedTotal : (isEntry && hasPetFeed ? petFeedTotal : 0);
+        addInvoiceSale(key, item.quantity, item.total + componentRevenue);
       }
+    });
+    Object.entries(invoiceSales).forEach(([key, value]) => {
+      if (!entrySales[key]) entrySales[key] = { qty: 0, revenue: 0, txCount: 0 };
+      entrySales[key].qty += value.qty;
+      entrySales[key].revenue += value.revenue;
+      entrySales[key].txCount += 1;
     });
   });
   addonEntries.forEach(entry => {
