@@ -773,12 +773,30 @@ function summarizeEntries(revenueEntries: RevenueEntry[], ticketItems: TicketIte
   const ticketBreakdownMap: Record<string, { qty: number; revenue: number }> = {};
 
   revenueEntries.forEach(entry => {
+    const hasPetFeed = entry.items.some(item => item.name === 'Pet Feed');
+    const petFeedTotal = entry.items.filter(item => item.name === 'Pet Feed').reduce((sum, item) => sum + item.total, 0);
+    const liveFeedTotal = entry.items.filter(item => item.name === 'Live Feed').reduce((sum, item) => sum + item.total, 0);
+    const invoiceBreakdown: Record<string, { qty: number; revenue: number }> = {};
+    const addInvoiceItem = (name: string, qty: number, revenue: number) => {
+      if (!invoiceBreakdown[name]) invoiceBreakdown[name] = { qty: 0, revenue: 0 };
+      invoiceBreakdown[name].qty += qty;
+      invoiceBreakdown[name].revenue += revenue;
+    };
+
     entry.items.forEach(item => {
       const ticket = ticketItems.find(ticketItem => ticketItem.id === item.ticketItemId);
-      const name = ticket?.name ?? item.ticketItemId;
+      if (item.name === 'Pet Feed' || item.name === 'Live Feed') return;
+      if (ticket?.category === 'addon') { addInvoiceItem(ticket.name, item.quantity, item.total); return; }
+      const isUltimate = item.name === 'Ultimate Pet Lover Entry Ticket';
+      const isEntry = item.name === 'Entry Ticket';
+      const name = isUltimate ? 'Ultimate Pet Lover Ticket' : isEntry && hasPetFeed ? 'Combo Ticket' : isEntry ? 'Entry Ticket' : ticket?.name ?? item.name ?? item.ticketItemId;
+      const componentRevenue = isUltimate ? liveFeedTotal : (isEntry && hasPetFeed ? petFeedTotal : 0);
+      addInvoiceItem(name, item.quantity, item.total + componentRevenue);
+    });
+    Object.entries(invoiceBreakdown).forEach(([name, data]) => {
       if (!ticketBreakdownMap[name]) ticketBreakdownMap[name] = { qty: 0, revenue: 0 };
-      ticketBreakdownMap[name].qty += item.quantity;
-      ticketBreakdownMap[name].revenue += item.total;
+      ticketBreakdownMap[name].qty += data.qty;
+      ticketBreakdownMap[name].revenue += data.revenue;
     });
   });
 
@@ -790,18 +808,12 @@ function summarizeEntries(revenueEntries: RevenueEntry[], ticketItems: TicketIte
     ticketBreakdownMap[name].revenue += (ticket?.price || 0) * entry.count;
   });
 
-  const visitors = revenueEntries.reduce((sum, entry) => (
-    sum + entry.items.reduce((itemSum, item) => {
-      const ticket = ticketItems.find(ticketItem => ticketItem.id === item.ticketItemId);
-      return ticket?.category === 'addon' ? itemSum : itemSum + item.quantity;
-    }, 0)
-  ), 0);
+  const visitors = Object.values(ticketBreakdownMap).reduce((sum, item) => sum + item.qty, 0);
   const revenue = revenueEntries.reduce((sum, entry) => sum + entry.totalAmount, 0) + addonEntries.reduce((sum, entry) => {
     const ticket = ticketItems.find(ticketItem => ticketItem.id === entry.ticketItemId);
     return sum + (ticket?.price || 0) * entry.count;
   }, 0);
-  const tickets = revenueEntries.reduce((sum, entry) => sum + entry.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0)
-    + addonEntries.reduce((sum, entry) => sum + entry.count, 0);
+  const tickets = Object.values(ticketBreakdownMap).reduce((sum, item) => sum + item.qty, 0);
   const transactions = revenueEntries.length;
 
   return {
