@@ -140,7 +140,7 @@ export default function Billing() {
       if (e.shiftKey && e.key === 'ArrowDown') {
         e.preventDefault();
         if (groups.some(group => group.count > 0)) {
-          groups.filter(group => group.count > 0).forEach(addGroupToCart);
+          addAllGroupsToCart();
           setCartOpen(true);
         }
         return;
@@ -279,6 +279,8 @@ export default function Billing() {
       return [...prev, { ticketItemId: id, name: label, price: total, quantity: 1 }];
     });
   };
+  const groupTotal = groups.reduce((total, group) => total + group.count * group.price, 0);
+  const addAllGroupsToCart = () => groups.filter(group => group.count > 0).forEach(addGroupToCart);
 
 
   const getBillLines = (items: RevenueEntry['items']) => {
@@ -606,8 +608,11 @@ export default function Billing() {
                 <div><label className="label">People</label><input type="number" min={0} className="input text-center font-bold" value={group.count} onChange={e => updateGroup(group.id, { count: Math.max(0, Number(e.target.value)) })} /></div>
                 <div><label className="label">Price / head</label><input type="number" min={0} className="input text-center font-bold" value={group.price} onChange={e => updateGroup(group.id, { price: Math.max(0, Number(e.target.value)) })} /></div>
               </div>
-              <div className="flex items-center justify-between"><p className="text-2xl font-bold text-gray-900">₹{group.count * group.price}</p><button className="btn-primary px-4 py-2 gap-2 text-sm" onClick={() => { addGroupToCart(group); setCartOpen(true); }} disabled={group.count <= 0}><IconPlus size={14} /> Add</button></div>
             </div>)}
+            <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+              <p className="text-2xl font-bold text-gray-900">₹{groupTotal}</p>
+              <button className="btn-primary px-4 py-2 gap-2 text-sm" onClick={() => { addAllGroupsToCart(); setCartOpen(true); }} disabled={!groups.some(group => group.count > 0)}><IconPlus size={14} /> Add to Cart</button>
+            </div>
           </div>
         </div>
       </div>
@@ -778,8 +783,8 @@ export default function Billing() {
                     {groups.length > 1 && <div className="flex items-center justify-between"><p className="text-[10px] font-semibold text-gray-400">GROUP {index + 1}</p><button type="button" onClick={() => removeGroup(group.id)} className="text-gray-400 hover:text-red-500" aria-label="Remove group"><IconClose size={13} /></button></div>}
                     <div><label className="label text-xs">Group Name</label><input type="text" className="input font-medium py-2" placeholder="e.g. School Trip" value={group.name} onChange={e => updateGroup(group.id, { name: e.target.value })} /></div>
                     <div className="grid grid-cols-2 gap-3"><div><label className="label text-xs">People</label><input type="number" min={0} className="input text-center font-bold py-2" value={group.count} onChange={e => updateGroup(group.id, { count: Math.max(0, Number(e.target.value)) })} /></div><div><label className="label text-xs">₹ / head</label><input type="number" min={0} className="input text-center font-bold py-2" value={group.price} onChange={e => updateGroup(group.id, { price: Math.max(0, Number(e.target.value)) })} /></div></div>
-                    <div className="flex items-center justify-between"><p className="text-2xl font-bold text-gray-900">₹{group.count * group.price}</p><button className="btn-primary px-3 py-2 gap-1 text-sm" onClick={() => addGroupToCart(group)} disabled={group.count <= 0}><IconPlus size={13} /> Add</button></div>
                   </div>)}
+                  <div className="flex items-center justify-between border-t border-gray-200 pt-3"><p className="text-2xl font-bold text-gray-900">₹{groupTotal}</p><button className="btn-primary px-3 py-2 gap-1 text-sm" onClick={addAllGroupsToCart} disabled={!groups.some(group => group.count > 0)}><IconPlus size={13} /> Add to Cart</button></div>
                 </div>
 
                 {/* Add-ons */}
