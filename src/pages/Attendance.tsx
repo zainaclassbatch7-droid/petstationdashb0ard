@@ -83,10 +83,10 @@ function exportPersonMonthly(staff: StaffMember, records: AttendanceRecord[], mo
 }
 
 function exportDashboardReport(
-  leaderboard: { name: string; avgScore: number; lateCount: number; leaveCount: number; attendanceDays: number; addOnSales: number }[],
+  leaderboard: { name: string; avgScore: number; lateCount: number; halfDayCount: number; leaveCount: number; attendanceDays: number; addOnSales: number }[],
   period: string,
 ) {
-  const data = [['#','Name','Avg Score','Late','Leave','Days Present','Add-On Sales'].map(HDR)];
+  const data = [['#','Name','Avg Score','Late','Half Day','Leave','Days Present','Add-On Sales'].map(HDR)];
   leaderboard.forEach((e, i) => {
     const bg = i % 2 === 0 ? 'F8FAFC' : 'FFFFFF';
     data.push([
@@ -94,13 +94,14 @@ function exportDashboardReport(
       XC(e.name, true, 'left', bg),
       XC(+e.avgScore.toFixed(2), false, 'right', bg),
       XC(e.lateCount, false, 'center', bg, 'D97706'),
+      XC(e.halfDayCount, false, 'center', bg, '0369A1'),
       XC(e.leaveCount, false, 'center', bg, 'DC2626'),
       XC(e.attendanceDays, false, 'center', bg),
       XC(e.addOnSales, false, 'center', bg, '0369A1'),
     ]);
   });
   const wb = XLSXStyle.utils.book_new();
-  XLSXStyle.utils.book_append_sheet(wb, buildWsRows(data, [5,22,12,8,8,14,14]), `Dashboard ${period}`);
+  XLSXStyle.utils.book_append_sheet(wb, buildWsRows(data, [5,22,12,8,10,8,14,14]), `Dashboard ${period}`);
   XLSXStyle.writeFile(wb, `Attendance_Dashboard_${period.replace(/[^a-zA-Z0-9]/g,'_')}.xlsx`);
 }
 
@@ -236,6 +237,7 @@ export default function Attendance() {
         staffId: member.id, name: member.name,
         avgScore: scored.length ? scored.reduce((s, r) => s + r.totalScore, 0) / scored.length : 0,
         lateCount: staffRecords.filter(r => r.status === 'late').length,
+        halfDayCount: staffRecords.filter(r => r.status === 'half_day').length,
         leaveCount: staffRecords.filter(r => r.status === 'leave').length,
         attendanceDays: staffRecords.reduce((total, record) => total + attendanceCredit(record.status), 0),
         addOnSales: staffRecords.reduce((s, r) => s + (r.addOnSaleCount ?? 0), 0),
@@ -246,6 +248,7 @@ export default function Attendance() {
   const daySummary = useMemo(() => {
     const onTime = recordsForDay.filter(record => record.status === 'on_time').length;
     const late = recordsForDay.filter(record => record.status === 'late').length;
+    const halfDay = recordsForDay.filter(record => record.status === 'half_day').length;
     const leave = recordsForDay.filter(record => record.status === 'leave').length;
     const attendanceCreditTotal = recordsForDay.reduce((total, record) => total + attendanceCredit(record.status), 0);
     const totalAddOnSales = recordsForDay.reduce((sum, record) => sum + (record.addOnSaleCount ?? 0), 0);
@@ -255,6 +258,7 @@ export default function Attendance() {
       activeStaff: activeStaffForDay.length,
       onTime,
       late,
+      halfDay,
       leave,
       attendanceCreditTotal,
       totalAddOnSales,
@@ -280,6 +284,7 @@ export default function Attendance() {
         avgScore: 0,
         onTime: 0,
         late: 0,
+        halfDay: 0,
         leave: 0,
         addOnSales: 0,
       };
@@ -290,6 +295,7 @@ export default function Attendance() {
       avgScore: scored.length ? scored.reduce((sum, record) => sum + record.totalScore, 0) / scored.length : 0,
       onTime: selectedStaffMonthRecords.filter(record => record.status === 'on_time').length,
       late: selectedStaffMonthRecords.filter(record => record.status === 'late').length,
+      halfDay: selectedStaffMonthRecords.filter(record => record.status === 'half_day').length,
       leave: selectedStaffMonthRecords.filter(record => record.status === 'leave').length,
       addOnSales: selectedStaffMonthRecords.reduce((sum, record) => sum + (record.addOnSaleCount ?? 0), 0),
     };
@@ -511,7 +517,7 @@ export default function Attendance() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <div className="stat-card min-h-[112px]">
               <div>
                 <p className="stat-label">Active Staff</p>
@@ -540,6 +546,17 @@ export default function Attendance() {
                 <p className="stat-value text-amber-700">{daySummary.late}</p>
               </div>
               <span className="badge-yellow">Monitor</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveStatusTab(activeStatusTab === 'half_day' ? null : 'half_day')}
+              className={`stat-card min-h-[112px] text-left transition-all ${activeStatusTab === 'half_day' ? 'ring-2 ring-sky-400' : 'hover:ring-1 hover:ring-sky-200'}`}
+            >
+              <div>
+                <p className="stat-label">Half Day</p>
+                <p className="stat-value text-sky-700">{daySummary.halfDay}</p>
+              </div>
+              <span className="badge-blue">0.5 Day</span>
             </button>
             <button
               type="button"
@@ -581,7 +598,7 @@ export default function Attendance() {
                   >
                     <div>
                       <p className="text-sm font-semibold text-emerald-900">Attendance</p>
-                      <p className="text-sm text-emerald-700 mt-2 leading-6">Morning register for marking `On Time`, `Late`, or `Leave` for all staff.</p>
+                      <p className="text-sm text-emerald-700 mt-2 leading-6">Morning register for marking `On Time`, `Late`, `Half Day`, or `Leave` for all staff.</p>
                     </div>
                     <span className="text-xs font-semibold text-emerald-900/70 mt-4">Open morning register</span>
                   </button>
@@ -634,6 +651,7 @@ export default function Attendance() {
                   {([
                     { status: 'on_time' as AttendanceStatus, label: 'On Time', count: daySummary.onTime, border: 'border-emerald-100', bg: activeStatusTab === 'on_time' ? 'bg-emerald-100' : 'bg-emerald-50', textLabel: 'text-emerald-800', textCount: 'text-emerald-900', nameCls: 'text-emerald-700' },
                     { status: 'late' as AttendanceStatus, label: 'Late', count: daySummary.late, border: 'border-amber-100', bg: activeStatusTab === 'late' ? 'bg-amber-100' : 'bg-amber-50', textLabel: 'text-amber-800', textCount: 'text-amber-900', nameCls: 'text-amber-700' },
+                    { status: 'half_day' as AttendanceStatus, label: 'Half Day', count: daySummary.halfDay, border: 'border-sky-100', bg: activeStatusTab === 'half_day' ? 'bg-sky-100' : 'bg-sky-50', textLabel: 'text-sky-800', textCount: 'text-sky-900', nameCls: 'text-sky-700' },
                     { status: 'leave' as AttendanceStatus, label: 'Leave', count: daySummary.leave, border: 'border-red-100', bg: activeStatusTab === 'leave' ? 'bg-red-100' : 'bg-red-50', textLabel: 'text-red-800', textCount: 'text-red-900', nameCls: 'text-red-700' },
                   ]).map(({ status, label, count, border, bg, textLabel, textCount, nameCls }) => {
                     const names = activeStaffForDay
@@ -1054,6 +1072,7 @@ export default function Attendance() {
             const totalDays = selectedStaffMonthRecords.length;
             const onTimePct = totalDays ? Math.round((selectedStaffSummary.onTime / totalDays) * 100) : 0;
             const latePct   = totalDays ? Math.round((selectedStaffSummary.late   / totalDays) * 100) : 0;
+            const halfDayPct = totalDays ? Math.round((selectedStaffSummary.halfDay / totalDays) * 100) : 0;
             const leavePct  = totalDays ? Math.round((selectedStaffSummary.leave  / totalDays) * 100) : 0;
 
             // bar chart data - daily total scores
@@ -1069,12 +1088,13 @@ export default function Attendance() {
             // pie chart - attendance split (CSS conic-gradient)
             const onTimeDeg = (selectedStaffSummary.onTime / (totalDays || 1)) * 360;
             const lateDeg   = (selectedStaffSummary.late   / (totalDays || 1)) * 360;
-            const pieGradient = `conic-gradient(#10b981 0deg ${onTimeDeg}deg, #f59e0b ${onTimeDeg}deg ${onTimeDeg + lateDeg}deg, #ef4444 ${onTimeDeg + lateDeg}deg 360deg)`;
+            const halfDayDeg = (selectedStaffSummary.halfDay / (totalDays || 1)) * 360;
+            const pieGradient = `conic-gradient(#10b981 0deg ${onTimeDeg}deg, #f59e0b ${onTimeDeg}deg ${onTimeDeg + lateDeg}deg, #0ea5e9 ${onTimeDeg + lateDeg}deg ${onTimeDeg + lateDeg + halfDayDeg}deg, #ef4444 ${onTimeDeg + lateDeg + halfDayDeg}deg 360deg)`;
 
             return (
               <>
                 {/* Stat cards */}
-                <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 xl:grid-cols-6 gap-4">
                   <div className="stat-card">
                     <div>
                       <p className="stat-label">Employee</p>
@@ -1098,10 +1118,24 @@ export default function Attendance() {
                   </div>
                   <div className="stat-card">
                     <div>
-                      <p className="stat-label">Late / Leave</p>
-                      <p className="stat-value text-amber-700">{selectedStaffSummary.late} / {selectedStaffSummary.leave}</p>
+                      <p className="stat-label">Late</p>
+                      <p className="stat-value text-amber-700">{selectedStaffSummary.late}</p>
                     </div>
                     <span className="badge-yellow">Month</span>
+                  </div>
+                  <div className="stat-card">
+                    <div>
+                      <p className="stat-label">Half Day</p>
+                      <p className="stat-value text-sky-700">{selectedStaffSummary.halfDay}</p>
+                    </div>
+                    <span className="badge-blue">{halfDayPct}%</span>
+                  </div>
+                  <div className="stat-card">
+                    <div>
+                      <p className="stat-label">Leave</p>
+                      <p className="stat-value text-red-700">{selectedStaffSummary.leave}</p>
+                    </div>
+                    <span className="badge-red">Month</span>
                   </div>
                   <div className="stat-card">
                     <div>
@@ -1175,6 +1209,7 @@ export default function Attendance() {
                         <div className="space-y-2 w-full">
                           {[['bg-emerald-500','On Time', selectedStaffSummary.onTime, onTimePct],
                             ['bg-amber-400', 'Late',    selectedStaffSummary.late,   latePct],
+                            ['bg-sky-500',   'Half Day', selectedStaffSummary.halfDay, halfDayPct],
                             ['bg-red-500',   'Leave',   selectedStaffSummary.leave,  leavePct],
                           ].map(([cls, lbl, val, pct]) => (
                             <div key={String(lbl)} className="flex items-center justify-between">
@@ -1387,7 +1422,7 @@ export default function Attendance() {
 
       {activeSection === 'dashboard' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 xl:grid-cols-6 gap-4">
             <div className="stat-card">
               <div>
                 <p className="stat-label">Active Staff</p>
@@ -1408,6 +1443,13 @@ export default function Attendance() {
                 <p className="stat-value text-amber-700">{daySummary.late}</p>
               </div>
               <span className="badge-yellow">Monitor</span>
+            </div>
+            <div className="stat-card">
+              <div>
+                <p className="stat-label">Half Day</p>
+                <p className="stat-value text-sky-700">{daySummary.halfDay}</p>
+              </div>
+              <span className="badge-blue">0.5 Day</span>
             </div>
             <div className="stat-card">
               <div>
@@ -1450,7 +1492,7 @@ export default function Attendance() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div>
                 <p className="section-title mb-1">Staff Leaderboard</p>
-                <p className="text-sm text-gray-500">Avg score, attendance, late, leave and add-on report by staff.</p>
+                <p className="text-sm text-gray-500">Avg score, attendance, late, half-day, leave and add-on report by staff.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
@@ -1477,10 +1519,10 @@ export default function Attendance() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="w-full min-w-[840px] text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {['Employee', 'Avg Score', 'Late Count', 'Leave Count', 'Attendance', 'Add-On Sales'].map(header => (
+                    {['Employee', 'Avg Score', 'Late Count', 'Half Day', 'Leave Count', 'Attendance', 'Add-On Sales'].map(header => (
                       <th key={header} className={`py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 ${header === 'Employee' ? 'text-left' : 'text-right'}`}>
                         {header}
                       </th>
@@ -1500,6 +1542,7 @@ export default function Attendance() {
                       </td>
                       <td className="py-3 text-right font-semibold text-gray-900">{entry.avgScore.toFixed(2)}</td>
                       <td className="py-3 text-right text-amber-700 font-medium">{entry.lateCount}</td>
+                      <td className="py-3 text-right text-sky-700 font-medium">{entry.halfDayCount}</td>
                       <td className="py-3 text-right text-red-700 font-medium">{entry.leaveCount}</td>
                       <td className="py-3 text-right text-gray-700">{entry.attendanceDays}</td>
                       <td className="py-3 text-right text-sky-700 font-medium">{entry.addOnSales}</td>
