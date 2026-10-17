@@ -125,7 +125,7 @@ export interface FoodCostEntry {
 }
 
 // ── ATTENDANCE ────────────────────────────────────────────────────────────────
-export type AttendanceStatus = 'on_time' | 'late' | 'leave';
+export type AttendanceStatus = 'on_time' | 'late' | 'half_day' | 'leave';
 
 export interface StaffMember {
   id: string;

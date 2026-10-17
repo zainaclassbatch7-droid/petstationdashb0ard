@@ -6,6 +6,9 @@ import { saveBillMessage, fetchBillMessage, saveBillLayout, fetchBillLayout, get
 import type { BillLayout } from '@/lib/dbSync';
 import { IconPlus, IconMinus, IconTrash, IconClose, IconCheck, IconSync, IconReceipt } from '@/components/Icons';
 interface CartItem { ticketItemId: string; name: string; price: number; quantity: number; }
+interface GroupDraft { id: string; name: string; count: number; price: number; }
+const newGroupDraft = (id: string): GroupDraft => ({ id, name: '', count: 0, price: 0 });
+const isGroupTicket = (id: string) => id.startsWith('group-ticket');
 function QtyInput({ item, qtyRefs, setQty, removeIfZero }: {
   item: CartItem;
   qtyRefs: React.MutableRefObject<Record<string, HTMLInputElement | null>>;
@@ -65,9 +68,8 @@ export default function Billing() {
 
   const entryTickets = state.ticketItems.filter(t => t.category !== 'addon');
   const addons = state.ticketItems.filter(t => t.category === 'addon');
-  const [groupCount, setGroupCount] = useState(0);
-  const [groupPrice, setGroupPrice] = useState(0);
-  const [groupName, setGroupName] = useState('');
+  const [groups, setGroups] = useState<GroupDraft[]>([newGroupDraft('group-1')]);
+  const nextGroupId = useRef(2);
   const [focusItemId, setFocusItemId] = useState<string | null>(null);
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const customerNameRef = useRef<HTMLInputElement | null>(null);
@@ -137,16 +139,8 @@ export default function Billing() {
 
       if (e.shiftKey && e.key === 'ArrowDown') {
         e.preventDefault();
-        if (groupCount > 0) {
-          const id = 'group-ticket';
-          const label = groupName.trim()
-            ? `Group Ticket (${groupName.trim()} (₹${groupPrice})) x ${groupCount}`
-            : `Group Ticket (₹${groupPrice}) x ${groupCount}`;
-          setCart(prev => {
-            const ex = prev.find(c => c.ticketItemId === id);
-            if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: groupCount, price: groupPrice, name: label } : c);
-            return [...prev, { ticketItemId: id, name: label, price: groupPrice, quantity: groupCount }];
-          });
+        if (groups.some(group => group.count > 0)) {
+          groups.filter(group => group.count > 0).forEach(addGroupToCart);
           setCartOpen(true);
         }
         return;
@@ -160,7 +154,7 @@ export default function Billing() {
         setPaymentMethod('');
         setCustomerName('');
         setCustomerPhone('');
-        setGroupName('');
+        setGroups([newGroupDraft('group-1')]);
         setPrintConfirm(false);
         setCartOpen(false);
         return;
@@ -267,8 +261,24 @@ export default function Billing() {
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
   const cartTotal = cart.reduce((s, c) => s + c.price * c.quantity, 0);
 
-  const groupNameRef = useRef(groupName);
-  useEffect(() => { groupNameRef.current = groupName; }, [groupName]);
+  const addGroup = () => setGroups(prev => [...prev, newGroupDraft(`group-${nextGroupId.current++}`)]);
+  const updateGroup = (id: string, changes: Partial<GroupDraft>) => {
+    setGroups(prev => prev.map(group => group.id === id ? { ...group, ...changes } : group));
+  };
+  const removeGroup = (id: string) => setGroups(prev => prev.length === 1 ? prev : prev.filter(group => group.id !== id));
+  const addGroupToCart = (group: GroupDraft) => {
+    if (group.count <= 0) return;
+    const id = `group-ticket-${group.id}`;
+    const total = group.count * group.price;
+    const label = group.name.trim()
+      ? `Group Ticket (${group.name.trim()} (₹${group.price})) x ${group.count}`
+      : `Group Ticket (₹${group.price}) x ${group.count}`;
+    setCart(prev => {
+      const existing = prev.find(item => item.ticketItemId === id);
+      if (existing) return prev.map(item => item.ticketItemId === id ? { ...item, quantity: 1, price: total, name: label } : item);
+      return [...prev, { ticketItemId: id, name: label, price: total, quantity: 1 }];
+    });
+  };
 
 
   const getBillLines = (items: RevenueEntry['items']) => {
@@ -408,7 +418,7 @@ export default function Billing() {
     setPaymentMethod('');
     setCustomerName('');
     setCustomerPhone('');
-    setGroupName('');
+    setGroups([newGroupDraft('group-1')]);
     setPrintConfirm(false);
     setCartOpen(false);
     setSuccessOpen(true);
@@ -579,66 +589,25 @@ export default function Billing() {
 
           {/* Group ticket */}
           <div className="relative p-6 border-2 border-gray-100 rounded-2xl bg-white flex flex-col gap-4">
-            <div>
+            <div className="flex items-center justify-between">
+              <div>
               <p className="text-lg font-bold text-gray-900">Group</p>
               <span className="badge-gray mt-1 inline-block">group</span>
-            </div>
-            <div>
-              <label className="label">Group Name</label>
-              <input
-                type="text"
-                className="input font-medium"
-                placeholder="e.g. School Trip"
-                value={groupName}
-                onClick={e => e.stopPropagation()}
-                onChange={e => setGroupName(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">People</label>
-                <input
-                  type="number"
-                  min={1}
-                  className="input text-center font-bold"
-                  value={groupCount}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => setGroupCount(Math.max(1, Number(e.target.value)))}
-                />
               </div>
-              <div>
-                <label className="label">Price / head</label>
-                <input
-                  type="number"
-                  min={0}
-                  className="input text-center font-bold"
-                  value={groupPrice}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => setGroupPrice(Math.max(0, Number(e.target.value)))}
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-2xl font-bold text-gray-900">₹{groupCount * groupPrice}</p>
-              <button
-                className="btn-primary px-4 py-2 gap-2 text-sm"
-                onClick={() => {
-                  const id = 'group-ticket';
-                  const total = groupCount * groupPrice;
-                        const label = groupName.trim()
-                          ? `Group Ticket (${groupName.trim()} (₹${groupPrice})) x ${groupCount}`
-                          : `Group Ticket (₹${groupPrice}) x ${groupCount}`;
-                  setCart(prev => {
-                    const ex = prev.find(c => c.ticketItemId === id);
-                          if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: 1, price: total, name: label } : c);
-                          return [...prev, { ticketItemId: id, name: label, price: total, quantity: 1 }];
-                  });
-                  setCartOpen(true);
-                }}
-              >
-                <IconPlus size={14} /> Add
+              <button type="button" onClick={addGroup} aria-label="Add another group" title="Add another group"
+                className="w-8 h-8 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-900 hover:text-white hover:border-gray-900 flex items-center justify-center transition-all">
+                <IconPlus size={15} />
               </button>
             </div>
+            {groups.map((group, index) => <div key={group.id} className="space-y-3 border-t border-gray-100 pt-4 first:border-t-0 first:pt-0">
+              {groups.length > 1 && <div className="flex items-center justify-between"><p className="text-xs font-semibold text-gray-400">GROUP {index + 1}</p><button type="button" onClick={() => removeGroup(group.id)} className="text-gray-400 hover:text-red-500" aria-label="Remove group"><IconClose size={14} /></button></div>}
+              <div><label className="label">Group Name</label><input type="text" className="input font-medium" placeholder="e.g. School Trip" value={group.name} onChange={e => updateGroup(group.id, { name: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="label">People</label><input type="number" min={0} className="input text-center font-bold" value={group.count} onChange={e => updateGroup(group.id, { count: Math.max(0, Number(e.target.value)) })} /></div>
+                <div><label className="label">Price / head</label><input type="number" min={0} className="input text-center font-bold" value={group.price} onChange={e => updateGroup(group.id, { price: Math.max(0, Number(e.target.value)) })} /></div>
+              </div>
+              <div className="flex items-center justify-between"><p className="text-2xl font-bold text-gray-900">₹{group.count * group.price}</p><button className="btn-primary px-4 py-2 gap-2 text-sm" onClick={() => { addGroupToCart(group); setCartOpen(true); }} disabled={group.count <= 0}><IconPlus size={14} /> Add</button></div>
+            </div>)}
           </div>
         </div>
       </div>
@@ -699,7 +668,7 @@ export default function Billing() {
                   <tr key={e.id} className="border-b border-gray-50 table-row-hover">
                     <td className="py-3 text-gray-400 text-xs whitespace-nowrap">{new Date(e.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()}</td>
                     <td className="py-3 text-xs font-medium text-gray-500">{e.invoiceNo || '—'}</td>
-                    <td className="py-3 text-gray-700 max-w-xs truncate">{e.items.map(i => { const t = state.ticketItems.find(x => x.id === i.ticketItemId); const name = i.name ?? t?.name ?? i.ticketItemId; return i.ticketItemId === 'group-ticket' ? name : `${name} ×${i.quantity}`; }).join(', ')}</td>
+                    <td className="py-3 text-gray-700 max-w-xs truncate">{e.items.map(i => { const t = state.ticketItems.find(x => x.id === i.ticketItemId); const name = i.name ?? t?.name ?? i.ticketItemId; return isGroupTicket(i.ticketItemId) ? name : `${name} ×${i.quantity}`; }).join(', ')}</td>
                     <td className="py-3"><span className="badge-gray capitalize">{e.paymentMethod}</span></td>
                     <td className="py-3 text-right font-bold text-gray-900">₹{e.totalAmount.toLocaleString('en-IN')}</td>
                     <td className="py-3 text-center">
@@ -740,7 +709,7 @@ export default function Billing() {
 
       {/* ── CART MODAL ──────────────────────────────────────────────────────── */}
       {cartOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 lg:p-4" onClick={() => { setCart([]); setPaymentMethod(''); setCustomerName(''); setCustomerPhone(''); setGroupName(''); setCartOpen(false); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 lg:p-4" onClick={() => { setCart([]); setPaymentMethod(''); setCustomerName(''); setCustomerPhone(''); setGroups([newGroupDraft('group-1')]); setCartOpen(false); }}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
             className="relative bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden"
@@ -760,7 +729,7 @@ export default function Billing() {
                 >
                   Clear Cart
                 </button>
-                <button onClick={() => { setCart([]); setPaymentMethod(''); setCustomerName(''); setCustomerPhone(''); setGroupName(''); setCartOpen(false); }} className="btn-icon w-10 h-10">
+                <button onClick={() => { setCart([]); setPaymentMethod(''); setCustomerName(''); setCustomerPhone(''); setGroups([newGroupDraft('group-1')]); setCartOpen(false); }} className="btn-icon w-10 h-10">
                   <IconClose size={18} />
                 </button>
               </div>
@@ -801,46 +770,16 @@ export default function Billing() {
 
                 {/* Group tile */}
                 <div className="rounded-3xl border border-gray-100 bg-white p-5 space-y-4">
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Group Ticket</p>
-                  </div>
-                  <div>
-                    <label className="label text-xs">Group Name</label>
-                    <input type="text" className="input font-medium py-2" placeholder="e.g. School Trip" value={groupName}
-                      onChange={e => setGroupName(e.target.value)} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label text-xs">People</label>
-                      <input type="number" min={0} className="input text-center font-bold py-2" value={groupCount}
-                        onChange={e => setGroupCount(Math.max(0, Number(e.target.value)))} />
-                    </div>
-                    <div>
-                      <label className="label text-xs">₹ / head</label>
-                      <input type="number" min={0} className="input text-center font-bold py-2" value={groupPrice}
-                        onChange={e => setGroupPrice(Math.max(0, Number(e.target.value)))} />
-                    </div>
-                  </div>
                   <div className="flex items-center justify-between">
-                    <p className="text-2xl font-bold text-gray-900">₹{groupCount * groupPrice}</p>
-                    <button
-                      className="btn-primary px-3 py-2 gap-1 text-sm"
-                      onClick={() => {
-                        const id = 'group-ticket';
-                        const label = groupName.trim()
-                          ? `Group Ticket (${groupName.trim()} (₹${groupPrice})) x ${groupCount}`
-                          : `Group Ticket (₹${groupPrice}) x ${groupCount}`;
-                        setCart(prev => {
-                          const ex = prev.find(c => c.ticketItemId === id);
-                          if (ex) return prev.map(c => c.ticketItemId === id ? { ...c, quantity: groupCount, price: groupPrice, name: label } : c);
-                          return [...prev, { ticketItemId: id, name: label, price: groupPrice, quantity: groupCount }];
-                        });
-                      }}
-                      disabled={groupCount <= 0}
-                    >
-                      <IconPlus size={13} /> Add
-                    </button>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Group Ticket</p>
+                    <button type="button" onClick={addGroup} aria-label="Add another group" title="Add another group" className="-mt-3 w-7 h-7 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-900 hover:text-white hover:border-gray-900 flex items-center justify-center transition-all"><IconPlus size={13} /></button>
                   </div>
+                  {groups.map((group, index) => <div key={group.id} className="space-y-3 border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+                    {groups.length > 1 && <div className="flex items-center justify-between"><p className="text-[10px] font-semibold text-gray-400">GROUP {index + 1}</p><button type="button" onClick={() => removeGroup(group.id)} className="text-gray-400 hover:text-red-500" aria-label="Remove group"><IconClose size={13} /></button></div>}
+                    <div><label className="label text-xs">Group Name</label><input type="text" className="input font-medium py-2" placeholder="e.g. School Trip" value={group.name} onChange={e => updateGroup(group.id, { name: e.target.value })} /></div>
+                    <div className="grid grid-cols-2 gap-3"><div><label className="label text-xs">People</label><input type="number" min={0} className="input text-center font-bold py-2" value={group.count} onChange={e => updateGroup(group.id, { count: Math.max(0, Number(e.target.value)) })} /></div><div><label className="label text-xs">₹ / head</label><input type="number" min={0} className="input text-center font-bold py-2" value={group.price} onChange={e => updateGroup(group.id, { price: Math.max(0, Number(e.target.value)) })} /></div></div>
+                    <div className="flex items-center justify-between"><p className="text-2xl font-bold text-gray-900">₹{group.count * group.price}</p><button className="btn-primary px-3 py-2 gap-1 text-sm" onClick={() => addGroupToCart(group)} disabled={group.count <= 0}><IconPlus size={13} /> Add</button></div>
+                  </div>)}
                 </div>
 
                 {/* Add-ons */}
@@ -896,7 +835,7 @@ export default function Billing() {
                       <div key={item.ticketItemId} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-gray-900">{item.name}</p>
-                          {item.ticketItemId !== 'group-ticket' && (
+                          {!isGroupTicket(item.ticketItemId) && (
                             <div className="flex items-center gap-1 mt-0.5">
                               <span className="text-sm text-gray-400">₹</span>
                               <input
@@ -910,7 +849,7 @@ export default function Billing() {
                             </div>
                           )}
                         </div>
-                        {item.ticketItemId !== 'group-ticket' ? (
+                        {!isGroupTicket(item.ticketItemId) ? (
                           <div className="flex items-center gap-2">
                             <button onClick={() => updateQty(item.ticketItemId, -1)}
                               className="w-9 h-9 rounded-xl bg-white border-2 border-gray-200 hover:border-gray-900 hover:bg-gray-900 hover:text-white flex items-center justify-center transition-all">

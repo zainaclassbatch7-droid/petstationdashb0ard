@@ -16,7 +16,7 @@ const XC = (v: any, bold = false, align: 'left'|'center'|'right' = 'left', bg = 
   },
 });
 const HDR = (v: string) => XC(v, true, 'center', '111827', 'FFFFFF');
-const slabel = (s: AttendanceStatus | null) => s === 'on_time' ? 'On Time' : s === 'late' ? 'Late' : s === 'leave' ? 'Leave' : '-';
+const slabel = (s: AttendanceStatus | null) => s === 'on_time' ? 'On Time' : s === 'late' ? 'Late' : s === 'half_day' ? 'Half Day' : s === 'leave' ? 'Leave' : '-';
 
 function buildWsRows(rows: any[][], colWidths: number[]) {
   const ws: any = {};
@@ -70,7 +70,7 @@ function exportPersonMonthly(staff: StaffMember, records: AttendanceRecord[], mo
   const avg = scored.length ? scored.reduce((s, r) => s + r.totalScore, 0) / scored.length : 0;
   data.push([
     XC('SUMMARY', true, 'left', 'F3F4F6'),
-    XC(`OT:${sorted.filter(r=>r.status==='on_time').length} Late:${sorted.filter(r=>r.status==='late').length} Leave:${sorted.filter(r=>r.status==='leave').length}`, true, 'center', 'F3F4F6'),
+    XC(`OT:${sorted.filter(r=>r.status==='on_time').length} Late:${sorted.filter(r=>r.status==='late').length} Half Day:${sorted.filter(r=>r.status==='half_day').length} Leave:${sorted.filter(r=>r.status==='leave').length}`, true, 'center', 'F3F4F6'),
     XC('',false,'center','F3F4F6'), XC('',false,'center','F3F4F6'), XC('',false,'center','F3F4F6'),
     XC('',false,'center','F3F4F6'),
     XC(`Avg: ${avg.toFixed(2)}`, true, 'center', 'F3F4F6'),
@@ -109,6 +109,7 @@ type AttendanceSection = 'attendance' | 'employee_review' | 'add_staff' | 'remov
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string; className: string }[] = [
   { value: 'on_time', label: 'On Time', className: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' },
   { value: 'late', label: 'Late', className: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' },
+  { value: 'half_day', label: 'Half Day', className: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200' },
   { value: 'leave', label: 'Leave', className: 'bg-red-50 text-red-700 ring-1 ring-red-200' },
 ];
 
@@ -123,6 +124,8 @@ const SECTION_OPTIONS: { id: AttendanceSection; label: string; description: stri
 const today = format(new Date(), 'yyyy-MM-dd');
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+// Attendance credit is derived from the persisted status, so older records remain valid.
+const attendanceCredit = (status: AttendanceStatus) => status === 'half_day' ? 0.5 : status === 'leave' ? 0 : 1;
 
 const getStaffTypeLabel = (type: StaffMember['type']) => type === 'ext' ? 'Ext Staff' : 'Permanent';
 
@@ -234,7 +237,7 @@ export default function Attendance() {
         avgScore: scored.length ? scored.reduce((s, r) => s + r.totalScore, 0) / scored.length : 0,
         lateCount: staffRecords.filter(r => r.status === 'late').length,
         leaveCount: staffRecords.filter(r => r.status === 'leave').length,
-        attendanceDays: staffRecords.length,
+        attendanceDays: staffRecords.reduce((total, record) => total + attendanceCredit(record.status), 0),
         addOnSales: staffRecords.reduce((s, r) => s + (r.addOnSaleCount ?? 0), 0),
       };
     }).sort((a, b) => b.avgScore - a.avgScore);
@@ -244,6 +247,7 @@ export default function Attendance() {
     const onTime = recordsForDay.filter(record => record.status === 'on_time').length;
     const late = recordsForDay.filter(record => record.status === 'late').length;
     const leave = recordsForDay.filter(record => record.status === 'leave').length;
+    const attendanceCreditTotal = recordsForDay.reduce((total, record) => total + attendanceCredit(record.status), 0);
     const totalAddOnSales = recordsForDay.reduce((sum, record) => sum + (record.addOnSaleCount ?? 0), 0);
     const scored = recordsForDay.filter(record => record.totalScore > 0);
 
@@ -252,6 +256,7 @@ export default function Attendance() {
       onTime,
       late,
       leave,
+      attendanceCreditTotal,
       totalAddOnSales,
       averageScore: scored.length ? scored.reduce((sum, record) => sum + record.totalScore, 0) / scored.length : 0,
     };
@@ -719,9 +724,7 @@ export default function Attendance() {
                           <tr className="border-b border-gray-200">
                             <th className="sticky left-0 z-10 bg-gray-100 px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">Staff</th>
                             <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">Type</th>
-                            <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">On Time</th>
-                            <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">Late</th>
-                            <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">Leave</th>
+                            {STATUS_OPTIONS.map(option => <th key={option.value} className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">{option.label}</th>)}
                             {registerMode === 'eod' && (
                               <>
                                 <th className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-gray-600">Perf.</th>
@@ -750,11 +753,13 @@ export default function Attendance() {
                                           ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
                                           : option.value === 'late'
                                             ? 'border-amber-300 bg-amber-100 text-amber-800'
+                                            : option.value === 'half_day'
+                                              ? 'border-sky-300 bg-sky-100 text-sky-800'
                                             : 'border-red-300 bg-red-100 text-red-800'
                                         : 'border-gray-200 bg-white text-gray-500'
                                     }`}
                                   >
-                                    {option.value === 'on_time' ? 'OT' : option.value === 'late' ? 'LT' : 'LV'}
+                                    {option.value === 'on_time' ? 'OT' : option.value === 'late' ? 'LT' : option.value === 'half_day' ? 'HD' : 'LV'}
                                   </button>
                                 </td>
                               ))}
@@ -1435,8 +1440,8 @@ export default function Attendance() {
                 <p className="text-2xl font-bold text-gray-900 mt-1">{daySummary.averageScore.toFixed(1)}</p>
               </div>
               <div className="rounded-xl bg-gray-50 p-3">
-                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Attendance Logged</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{recordsForDay.length}</p>
+                <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Attendance Credit</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{daySummary.attendanceCreditTotal}</p>
               </div>
             </div>
           </div>
