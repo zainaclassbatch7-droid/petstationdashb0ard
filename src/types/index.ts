@@ -17,7 +17,6 @@ export type Section =
   | 'expenses'
   | 'reports'
   | 'ledgers'
-  | 'journal'
   | 'settings'
   | 'qr_codes'
   | 'marketing'
@@ -70,6 +69,7 @@ export interface ExpenseEntry {
   id: string;
   date: string;
   ledgerId: string;
+  partyId: string;
   subledgerId?: string;
   amount: number;
   paymentMethod: string;
@@ -79,6 +79,8 @@ export interface ExpenseEntry {
   createdAt: string;
   synced?: boolean;
 }
+
+export interface Party { id: string; name: string; }
 
 // ── EMPLOYEES ─────────────────────────────────────────────────────────────────
 export interface Employee {
@@ -206,21 +208,6 @@ export interface AppSettings {
   businessPhone: string;
   businessGST: string;
   taxPercent: number;
-}
-
-// ── JOURNAL ──────────────────────────────────────────────────────────────────
-export type JournalEntryType = 'add' | 'withdraw';
-export type JournalField = 'salary' | 'maintenance';
-
-export interface JournalEntry {
-  id: string;
-  date: string;
-  type: JournalEntryType;
-  field: JournalField;
-  amount: number;
-  description: string;
-  createdBy: string;
-  createdAt: string;
 }
 
 // ── QR ────────────────────────────────────────────────────────────────────────

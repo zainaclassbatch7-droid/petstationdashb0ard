@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '@/store/AppContext';
-import type { ExpenseEntry, JournalEntry, JournalField } from '@/types';
+import type { ExpenseEntry } from '@/types';
 import { format } from 'date-fns';
 import { IconTrash } from '@/components/Icons';
 import { IconCheck } from '@/components/Icons';
@@ -47,51 +47,14 @@ function EditableDescription({ entry }: { entry: ExpenseEntry }) {
 
 export default function Expenses() {
   const { state, dispatch } = useApp();
-  const [expenseTab, setExpenseTab] = useState<'ledger' | 'journal'>('ledger');
   const [date, setDate] = useState(today);
   const [ledgerId, setLedgerId] = useState('');
   const [subledgerId, setSubledgerId] = useState('');
+  const [partyId, setPartyId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [description, setDescription] = useState('');
   const [note, setNote] = useState('');
-
-  // Journal expense form state
-  const [jField, setJField] = useState<JournalField>('salary');
-  const [jAmount, setJAmount] = useState('');
-
-  const submitJournal = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!jAmount) return alert('Enter an amount');
-    const amt = parseFloat(jAmount);
-    const label = jField === 'salary' ? 'Salary' : 'Maintenance';
-    // Add to journal as 'add'
-    const journalEntry: JournalEntry = {
-      id: `jnl-${Date.now()}`,
-      date, type: 'add', field: jField,
-      amount: amt,
-      description: `${label} allocation`,
-      createdBy: state.currentUser?.name || 'Unknown',
-      createdAt: new Date().toISOString(),
-    };
-    dispatch({ type: 'ADD_JOURNAL_ENTRY', payload: journalEntry });
-    // Also add as an expense so it appears in the expense list
-    const matchedLedger = jField === 'salary'
-      ? state.ledgers.find(l => l.name.toLowerCase() === 'salary')
-      : state.ledgers.find(l => l.name.toLowerCase().includes('maintanance') || l.name.toLowerCase().includes('maintenance'));
-    const expenseEntry: ExpenseEntry = {
-      id: `exp-jnl-${Date.now()}`,
-      date,
-      ledgerId: matchedLedger?.id || jField,
-      amount: amt,
-      paymentMethod: 'cash',
-      description: `${label} allocation`,
-      createdBy: state.currentUser?.name || 'Unknown',
-      createdAt: new Date().toISOString(),
-    };
-    dispatch({ type: 'ADD_EXPENSE', payload: expenseEntry });
-    setJAmount('');
-  };
 
   const sortedLedgers = useMemo(
     () => [...state.ledgers].sort((a, b) => a.name.localeCompare(b.name)),
@@ -102,10 +65,10 @@ export default function Expenses() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ledgerId || !amount || !description) return alert('Fill required fields');
+    if (!ledgerId || !partyId || !amount || !description) return alert('Fill required fields');
     const entry: ExpenseEntry = {
       id: `exp-${Date.now()}`,
-      date, ledgerId,
+      date, ledgerId, partyId,
       subledgerId: subledgerId || undefined,
       amount: parseFloat(amount),
       paymentMethod, description, note,
@@ -113,7 +76,7 @@ export default function Expenses() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: 'ADD_EXPENSE', payload: entry });
-    setAmount(''); setDescription(''); setNote(''); setSubledgerId('');
+    setAmount(''); setDescription(''); setNote(''); setSubledgerId(''); setPartyId('');
   };
 
   const filtered = useMemo(() =>
@@ -143,16 +106,15 @@ export default function Expenses() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Form */}
         <div className="card">
-          {/* Tabs */}
-          <div className="flex rounded-lg overflow-hidden border border-gray-200 mb-4">
-            <button type="button" onClick={() => setExpenseTab('ledger')} className={`flex-1 py-2 text-sm font-semibold transition-colors ${expenseTab === 'ledger' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>Ledger</button>
-            <button type="button" onClick={() => setExpenseTab('journal')} className={`flex-1 py-2 text-sm font-semibold transition-colors ${expenseTab === 'journal' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50'}`}>Journal</button>
-          </div>
-
-          {expenseTab === 'ledger' ? (
-            <>
-              <p className="section-title">Add Expense</p>
-              <form onSubmit={submit} className="space-y-3">
+          <p className="section-title">Add Expense</p>
+          <form onSubmit={submit} className="space-y-3">
+                <div>
+                  <label className="label">Party *</label>
+                  <select className="input" value={partyId} onChange={e => setPartyId(e.target.value)} required>
+                    <option value="">Select party...</option>
+                    {state.parties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
                 <div>
                   <label className="label">Ledger *</label>
                   <select className="input" value={ledgerId} onChange={e => { setLedgerId(e.target.value); setSubledgerId(''); }} required>
@@ -188,40 +150,7 @@ export default function Expenses() {
                   <input className="input" placeholder="Optional note..." value={note} onChange={e => setNote(e.target.value)} />
                 </div>
                 <button type="submit" className="btn-primary w-full">Add Expense</button>
-              </form>
-            </>
-          ) : (
-            <>
-              <p className="section-title">Add to Journal</p>
-              <form onSubmit={submitJournal} className="space-y-3">
-                <div>
-                  <label className="label">Field *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['salary', 'maintenance'] as JournalField[]).map(f => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => setJField(f)}
-                        className={`py-2.5 rounded-lg text-sm font-semibold border transition-colors capitalize ${
-                          jField === f ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    Current balance: ₹{state.journalEntries.filter(j => j.field === jField).reduce((s, j) => j.type === 'add' ? s + j.amount : s - j.amount, 0).toLocaleString('en-IN')}
-                  </p>
-                </div>
-                <div>
-                  <label className="label">Amount (₹) *</label>
-                  <input type="text" inputMode="decimal" className="input" placeholder="0.00" value={jAmount} onChange={e => setJAmount(e.target.value)} required />
-                </div>
-                <button type="submit" className="btn-primary w-full">Add to Journal</button>
-              </form>
-            </>
-          )}
+          </form>
         </div>
 
         {/* List */}
@@ -242,7 +171,7 @@ export default function Expenses() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {['Ledger', 'Description', 'Payment', 'Amount', ''].map(h => (
+                    {['Party', 'Ledger', 'Description', 'Payment', 'Amount', ''].map(h => (
                       <th key={h} className={`py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide ${h === 'Amount' ? 'text-right' : 'text-left'}`}>{h}</th>
                     ))}
                   </tr>
@@ -251,8 +180,10 @@ export default function Expenses() {
                   {filtered.map(e => {
                     const ledger = state.ledgers.find(l => l.id === e.ledgerId);
                     const sub = ledger?.subledgers.find(s => s.id === e.subledgerId);
+                    const party = state.parties.find(p => p.id === e.partyId);
                     return (
                       <tr key={e.id} className="border-b border-gray-50 table-row-hover">
+                        <td className="py-3">{party?.name ?? 'Others'}</td>
                         <td className="py-3">
                           <span className="font-medium text-gray-900">{ledger?.name ?? e.ledgerId}</span>
                           {sub && <span className="text-gray-400"> / {sub.name}</span>}

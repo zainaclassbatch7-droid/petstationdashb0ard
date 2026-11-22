@@ -10,6 +10,15 @@ export default function Ledgers() {
   const [editId, setEditId] = useState<string | null>(null);
   const [subName, setSubName] = useState('');
   const [addingSubFor, setAddingSubFor] = useState<string | null>(null);
+  const [partyName, setPartyName] = useState('');
+
+  const addParty = () => {
+    const trimmed = partyName.trim();
+    if (!trimmed) return;
+    if (state.parties.some(p => p.name.toLowerCase() === trimmed.toLowerCase())) return alert('This party already exists');
+    dispatch({ type: 'ADD_PARTY', payload: { id: `party-${Date.now()}`, name: trimmed } });
+    setPartyName('');
+  };
 
   const save = () => {
     if (!name.trim()) return;
@@ -46,6 +55,18 @@ export default function Ledgers() {
       <div className="page-header">
         <h2 className="page-title">Ledgers</h2>
       </div>
+
+      <section className="card">
+        <p className="section-title">Parties</p>
+        <p className="text-sm text-gray-500 mb-3">Create parties to assign them to expense entries.</p>
+        <form className="flex flex-col sm:flex-row gap-2" onSubmit={e => { e.preventDefault(); addParty(); }}>
+          <input className="input flex-1" placeholder="Party name..." value={partyName} onChange={e => setPartyName(e.target.value)} required />
+          <button type="submit" className="btn-primary">Add Party</button>
+        </form>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {state.parties.map(party => <span key={party.id} className="badge-gray">{party.name}</span>)}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Form */}

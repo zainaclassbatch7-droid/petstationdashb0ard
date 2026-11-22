@@ -22,7 +22,6 @@ const NAV_ITEMS: { path: string; label: string; section: Section; Icon: React.FC
   { path: '/expenses',  label: 'Expenses',         section: 'expenses',        Icon: IconExpenses },
   { path: '/reports',   label: 'Reports',          section: 'reports',         Icon: IconReports },
   { path: '/ledgers',   label: 'Ledgers',          section: 'ledgers',         Icon: IconLedgers },
-  { path: '/journal',   label: 'Journal',          section: 'journal',         Icon: IconReports },
   { path: '/qr-codes',  label: 'QR Dashboard',     section: 'qr_codes',        Icon: IconQR },
   { path: '/customers',  label: 'Customers',         section: 'customers',       Icon: IconUser },
   { path: '/whatsapp',   label: 'WhatsApp',          section: 'whatsapp',        Icon: IconWhatsAppNav },

@@ -6,7 +6,6 @@ import Billing from '@/pages/Billing';
 import Expenses from '@/pages/Expenses';
 import Reports from '@/pages/Reports';
 import Ledgers from '@/pages/Ledgers';
-import Journal from '@/pages/Journal';
 import QRCodes from '@/pages/QRCodes';
 import Customers from '@/pages/Customers';
 import WhatsApp from '@/pages/WhatsApp';
@@ -22,7 +21,6 @@ const SECTION_ROUTES: Record<Section, string> = {
   expenses: '/expenses',
   reports: '/reports',
   ledgers: '/ledgers',
-  journal: '/journal',
   settings: '/settings',
   qr_codes: '/qr-codes',
   marketing: '/qr-codes',
@@ -67,7 +65,6 @@ function AppRoutes() {
         <Route path="/expenses" element={<ProtectedRoute section="expenses"><Expenses /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute section="reports"><Reports /></ProtectedRoute>} />
         <Route path="/ledgers" element={<ProtectedRoute section="ledgers"><Ledgers /></ProtectedRoute>} />
-        <Route path="/journal" element={<ProtectedRoute section="journal"><Journal /></ProtectedRoute>} />
         <Route path="/qr-codes" element={<ProtectedRoute section="qr_codes"><QRCodes /></ProtectedRoute>} />
         <Route path="/customers" element={<ProtectedRoute section="customers"><Customers /></ProtectedRoute>} />
         <Route path="/whatsapp" element={<ProtectedRoute section="whatsapp"><WhatsApp /></ProtectedRoute>} />

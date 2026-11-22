@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type {
   RevenueEntry, ExpenseEntry, CustomerRecord, AddOnEntry,
   AppSettings, User, StaffMember, AttendanceRecord, Employee,
-  Ledger, TicketItem, WhatsAppTemplate, CashFlow, EmployeeCharge, FoodCostEntry, JournalEntry,
+  Ledger, TicketItem, WhatsAppTemplate, CashFlow, EmployeeCharge, FoodCostEntry, Party,
 } from '@/types';
 
 const APP_ID = 'petstation';
@@ -132,7 +132,7 @@ export async function fetchRevenue(): Promise<RevenueEntry[]> {
 
 export async function upsertExpense(entry: ExpenseEntry) {
   const { error } = await supabase.from('expense_entries').upsert({
-    id: entry.id, date: entry.date, ledger_id: entry.ledgerId,
+    id: entry.id, date: entry.date, ledger_id: entry.ledgerId, party_id: entry.partyId,
     subledger_id: entry.subledgerId ?? null, amount: entry.amount,
     payment_method: entry.paymentMethod, description: entry.description,
     note: entry.note ?? null, created_by: entry.createdBy, created_at: entry.createdAt,
@@ -149,13 +149,24 @@ export async function fetchExpenses(): Promise<ExpenseEntry[]> {
   const { data, error } = await supabase.from('expense_entries').select('*').order('created_at', { ascending: false });
   if (error) { console.error('[supabase] fetchExpenses:', error.message); return []; }
   return (data ?? []).map(r => ({
-    id: r.id, date: r.date, ledgerId: r.ledger_id, subledgerId: r.subledger_id,
+    id: r.id, date: r.date, ledgerId: r.ledger_id, partyId: r.party_id ?? 'others', subledgerId: r.subledger_id,
     amount: r.amount, paymentMethod: r.payment_method, description: r.description,
     note: r.note, createdBy: r.created_by, createdAt: r.created_at,
   }));
 }
 
-// ── CUSTOMERS ─────────────────────────────────────────────────────────────────
+export async function saveParties(parties: Party[]) {
+  const { error } = await supabase.from('parties').upsert(parties.map(p => ({ id: p.id, name: p.name })), { onConflict: 'id' });
+  if (error) console.error('[supabase] saveParties:', error.message);
+}
+
+export async function fetchParties(): Promise<Party[]> {
+  const { data, error } = await supabase.from('parties').select('id,name').order('name');
+  if (error) { console.error('[supabase] fetchParties:', error.message); return []; }
+  return (data ?? []).map(p => ({ id: p.id, name: p.name }));
+}
+
+// CUSTOMERS
 
 export async function upsertCustomer(c: CustomerRecord) {
   const { error } = await supabase.from('customers').upsert({
@@ -353,32 +364,6 @@ export async function fetchFoodCosts(): Promise<FoodCostEntry[]> {
     id: r.id, date: r.date, animalId: r.animal_id, foodItem: r.food_item,
     quantity: r.quantity, unit: r.unit, unitCost: r.unit_cost, totalCost: r.total_cost,
     paymentMethod: r.payment_method, note: r.note,
-    createdBy: r.created_by, createdAt: r.created_at,
-  }));
-}
-
-// ── JOURNAL ENTRIES ───────────────────────────────────────────────────────────
-
-export async function upsertJournalEntry(e: JournalEntry) {
-  const { error } = await supabase.from('journal_entries').upsert({
-    id: e.id, date: e.date, type: e.type, field: e.field,
-    amount: e.amount, description: e.description,
-    created_by: e.createdBy, created_at: e.createdAt,
-  }, { onConflict: 'id' });
-  if (error) console.error('[supabase] upsertJournalEntry:', error.message);
-}
-
-export async function deleteJournalEntry(id: string) {
-  const { error } = await supabase.from('journal_entries').delete().eq('id', id);
-  if (error) console.error('[supabase] deleteJournalEntry:', error.message);
-}
-
-export async function fetchJournalEntries(): Promise<JournalEntry[]> {
-  const { data, error } = await supabase.from('journal_entries').select('*').order('created_at', { ascending: false });
-  if (error) { console.error('[supabase] fetchJournalEntries:', error.message); return []; }
-  return (data ?? []).map(r => ({
-    id: r.id, date: r.date, type: r.type, field: r.field,
-    amount: r.amount, description: r.description,
     createdBy: r.created_by, createdAt: r.created_at,
   }));
 }

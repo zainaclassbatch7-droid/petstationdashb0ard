@@ -9,7 +9,6 @@ const SECTION_LABELS: Record<Section, string> = {
   expenses:        'Expenses',
   reports:         'Reports',
   ledgers:         'Ledgers',
-  journal:         'Journal',
   settings:        'Settings',
   qr_codes:        'QR Codes',
   marketing:       'QR Dashboard',
@@ -73,7 +72,7 @@ export default function UserManagement() {
     if (!newUser.name || !newUser.username) return alert('Name and username are required');
     const defaultPerms: Record<Role, Section[]> = {
       superadmin: ALL_SECTIONS,
-      accountant: ['billing','expenses','reports','ledgers','customers','whatsapp','attendance'],
+      accountant: ['expenses','reports','ledgers'],
       employee:   ['billing'],
       marketing:  ['qr_codes','marketing','customers','whatsapp'],
       manager:    ['attendance','approvals'],
@@ -195,7 +194,7 @@ export default function UserManagement() {
                   <IconShield size={11} /> Full Access
                 </span>
               ) : (
-                user.permissions.map(p => (
+                user.permissions.filter(p => p in SECTION_LABELS).map(p => (
                   <span key={p} className="badge-gray">{SECTION_LABELS[p]}</span>
                 ))
               )}

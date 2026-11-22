@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import type {
   User, Role, Section, TicketItem, PaymentMethod, Ledger, RevenueEntry,
   ExpenseEntry, Employee, EmployeeCharge, Animal, FoodCostEntry, CashFlow, AppSettings,
-  CustomerRecord, WhatsAppTemplate, StaffMember, AttendanceRecord, AddOnEntry, JournalEntry,
+  CustomerRecord, WhatsAppTemplate, StaffMember, AttendanceRecord, AddOnEntry, Party,
 } from '@/types';
 import {
   upsertRevenue, deleteRevenue, fetchRevenue, recycleInvoiceNo,
@@ -14,12 +14,11 @@ import {
   upsertAttendance, deleteAttendance, fetchAttendance,
   upsertEmployeeCharge, deleteEmployeeCharge, fetchEmployeeCharges,
   upsertFoodCost, deleteFoodCost, fetchFoodCosts,
-  upsertJournalEntry, deleteJournalEntry, fetchJournalEntries,
   saveSettings, fetchSettings,
   saveUsers, fetchUsers,
   saveStaff, fetchStaff,
   saveEmployees, fetchEmployees,
-  saveLedgers, fetchLedgers,
+  saveLedgers, fetchLedgers, saveParties, fetchParties,
   saveTicketItems, fetchTicketItems,
   saveWhatsAppTemplates, fetchWhatsAppTemplates,
   saveCashFlows, fetchCashFlows,
@@ -28,11 +27,11 @@ import {
 // ── DEFAULT DATA ──────────────────────────────────────────────────────────────
 
 const ALL_SECTIONS: Section[] = [
-  'billing','expenses','reports','ledgers','journal','settings','qr_codes','marketing','customers','whatsapp','attendance','add_ons','approvals','user_management'
+  'billing','expenses','reports','ledgers','settings','qr_codes','marketing','customers','whatsapp','attendance','add_ons','approvals','user_management'
 ];
 
 const SUPERADMIN_SECTIONS: Section[] = ALL_SECTIONS;
-const ACCOUNTANT_SECTIONS: Section[] = ['expenses','reports','ledgers','journal'];
+const ACCOUNTANT_SECTIONS: Section[] = ['expenses','reports','ledgers'];
 const EMPLOYEE_SECTIONS: Section[] = ['billing','add_ons'];
 const MARKETING_SECTIONS: Section[] = ['qr_codes','marketing','customers','whatsapp'];
 const MANAGER_SECTIONS: Section[] = ['attendance','approvals'];
@@ -158,6 +157,7 @@ interface AppState {
   ledgers: Ledger[];
   revenueEntries: RevenueEntry[];
   expenseEntries: ExpenseEntry[];
+  parties: Party[];
   employeeCharges: EmployeeCharge[];
   foodCostEntries: FoodCostEntry[];
   employees: Employee[];
@@ -169,7 +169,6 @@ interface AppState {
   addOnEntries: AddOnEntry[];
   customers: CustomerRecord[];
   whatsappTemplates: WhatsAppTemplate[];
-  journalEntries: JournalEntry[];
   pendingSync: string[];
 }
 
@@ -181,6 +180,7 @@ const initialState: AppState = {
   ledgers: defaultLedgers,
   revenueEntries: [],
   expenseEntries: [],
+  parties: [{ id: 'others', name: 'Others' }],
   employeeCharges: [],
   foodCostEntries: [],
   employees: defaultEmployees,
@@ -192,7 +192,6 @@ const initialState: AppState = {
   addOnEntries: [],
   customers: [],
   whatsappTemplates: [],
-  journalEntries: [],
   pendingSync: [],
 };
 
@@ -262,8 +261,7 @@ type Action =
   | { type: 'RT_DELETE_CUSTOMER'; payload: string }
   | { type: 'RT_UPSERT_ADDON'; payload: AddOnEntry }
   | { type: 'RT_DELETE_ADDON'; payload: string }
-  | { type: 'ADD_JOURNAL_ENTRY'; payload: JournalEntry }
-  | { type: 'DELETE_JOURNAL_ENTRY'; payload: string };
+  | { type: 'ADD_PARTY'; payload: Party };
 
 function reducer(state: AppState, action: Action): AppState {
   let next: AppState;
@@ -321,12 +319,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'DELETE_EXPENSE': {
       next = { ...state, expenseEntries: state.expenseEntries.filter(e => e.id !== action.payload) };
       deleteExpense(action.payload);
-      // If this was a journal-linked expense, also delete the journal entry
-      if (action.payload.startsWith('exp-jnl-')) {
-        const jnlId = action.payload.replace('exp-jnl-', 'jnl-');
-        next = { ...next, journalEntries: next.journalEntries.filter(e => e.id !== jnlId) };
-        deleteJournalEntry(jnlId);
-      }
       break;
     }
     case 'UPDATE_EXPENSE_DESCRIPTION': {
@@ -369,6 +361,9 @@ function reducer(state: AppState, action: Action): AppState {
     case 'ADD_LEDGER':
       next = { ...state, ledgers: [...state.ledgers, action.payload] };
       saveLedgers(next.ledgers); break;
+    case 'ADD_PARTY':
+      next = { ...state, parties: [...state.parties, action.payload] };
+      saveParties(next.parties); break;
     case 'UPDATE_LEDGER':
       next = { ...state, ledgers: state.ledgers.map(l => l.id === action.payload.id ? action.payload : l) };
       saveLedgers(next.ledgers); break;
@@ -491,12 +486,6 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'RT_DELETE_ADDON':
       return { ...state, addOnEntries: state.addOnEntries.filter(e => e.id !== action.payload) };
-    case 'ADD_JOURNAL_ENTRY':
-      next = { ...state, journalEntries: [...state.journalEntries, action.payload] };
-      upsertJournalEntry(action.payload); break;
-    case 'DELETE_JOURNAL_ENTRY':
-      next = { ...state, journalEntries: state.journalEntries.filter(e => e.id !== action.payload) };
-      deleteJournalEntry(action.payload); break;
     default: return state;
   }
   return next;
@@ -601,7 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchAttendance().then(attendance => { if (attendance.length) dispatch({ type: 'LOAD_ATTENDANCE', payload: attendance }); });
     fetchEmployeeCharges().then(empCharges => { if (empCharges.length) dispatch({ type: 'LOAD_EMPLOYEE_CHARGES', payload: empCharges }); });
     fetchFoodCosts().then(foodCosts => { if (foodCosts.length) dispatch({ type: 'LOAD_FOOD_COSTS', payload: foodCosts }); });
-    fetchJournalEntries().then(journals => { if (journals.length) dispatch({ type: 'LOAD_CONFIG', payload: { journalEntries: journals } }); });
+    fetchParties().then(parties => { if (parties.length) dispatch({ type: 'LOAD_CONFIG', payload: { parties } }); });
     Promise.all([
       fetchSettings(), fetchUsers(), fetchStaff(), fetchEmployees(),
       fetchLedgers(), fetchTicketItems(), fetchWhatsAppTemplates(), fetchCashFlows(),
@@ -666,14 +655,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'addon_entries' }, ({ eventType, new: n, old }) => {
         if (eventType === 'DELETE') dispatch({ type: 'RT_DELETE_ADDON', payload: (old as any).id });
         else dispatch({ type: 'RT_UPSERT_ADDON', payload: mapAddon(n) });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'journal_entries' }, ({ eventType, new: n, old }) => {
-        if (eventType === 'DELETE') {
-          dispatch({ type: 'DELETE_JOURNAL_ENTRY', payload: (old as any).id });
-        } else {
-          const j: JournalEntry = { id: n.id, date: n.date, type: n.type, field: n.field, amount: n.amount, description: n.description, createdBy: n.created_by, createdAt: n.created_at };
-          dispatch({ type: 'ADD_JOURNAL_ENTRY', payload: j });
-        }
       })
       .subscribe();
 

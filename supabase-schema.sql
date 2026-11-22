@@ -17,6 +17,7 @@ create table if not exists expense_entries (
   id text primary key,
   date text not null,
   ledger_id text,
+  party_id text not null default 'others',
   subledger_id text,
   amount numeric not null,
   payment_method text,
@@ -25,6 +26,14 @@ create table if not exists expense_entries (
   created_by text,
   created_at timestamptz not null
 );
+
+create table if not exists parties (
+  id text primary key,
+  name text not null unique
+);
+
+insert into parties (id, name) values ('others', 'Others')
+on conflict (id) do update set name = excluded.name;
 
 create table if not exists customers (
   id text primary key,
@@ -52,12 +61,19 @@ create table if not exists addon_entries (
 
 -- Enable Row Level Security (allow all for anon key)
 alter table revenue_entries enable row level security;
+alter table expense_entries add column if not exists party_id text;
+update expense_entries set party_id = 'others' where party_id is null;
+alter table expense_entries alter column party_id set default 'others';
+alter table expense_entries alter column party_id set not null;
+
 alter table expense_entries enable row level security;
+alter table parties enable row level security;
 alter table customers enable row level security;
 alter table addon_entries enable row level security;
 
 create policy "allow all" on revenue_entries for all using (true) with check (true);
 create policy "allow all" on expense_entries for all using (true) with check (true);
+create policy "allow all" on parties for all using (true) with check (true);
 create policy "allow all" on customers for all using (true) with check (true);
 create policy "allow all" on addon_entries for all using (true) with check (true);
 
