@@ -615,7 +615,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       invoiceNo: r.invoice_no ?? undefined,
     });
     const mapExpense = (r: any): ExpenseEntry => ({
-      id: r.id, date: r.date, ledgerId: r.ledger_id,
+      id: r.id, date: r.date, ledgerId: r.ledger_id, partyId: r.party_id ?? 'others',
       subledgerId: r.subledger_id, amount: r.amount,
       paymentMethod: r.payment_method, description: r.description,
       note: r.note, createdBy: r.created_by, createdAt: r.created_at,
